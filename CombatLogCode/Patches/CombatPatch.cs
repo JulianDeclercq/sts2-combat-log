@@ -5,10 +5,10 @@ using MegaCrit.Sts2.Core.Combat;
 namespace CombatLog.CombatLogCode.Patches;
 
 /// <summary>
-/// Patches CombatManager.StartTurn to track turn progression,
+/// Patches CombatManager.SetupPlayerTurn to track turn progression (player turns only),
 /// and StartCombatInternal to reset turn counter per combat.
 /// </summary>
-[HarmonyPatch(typeof(CombatManager), "StartTurn")]
+[HarmonyPatch(typeof(CombatManager), "SetupPlayerTurn")]
 public static class TurnStartPatch
 {
     [HarmonyPrefix]
