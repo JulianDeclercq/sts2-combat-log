@@ -26,7 +26,7 @@ public static class CombatLogTracker
     public static void OnCombatStart()
     {
         CurrentCombat++;
-        CurrentTurn = 1;
+        CurrentTurn = 0;
         _orderCounter = 0;
     }
 

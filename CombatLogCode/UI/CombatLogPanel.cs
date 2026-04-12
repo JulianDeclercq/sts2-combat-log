@@ -22,15 +22,15 @@ public partial class CombatLogPanel : PanelContainer
         _instance = this;
 
         // Panel styling
-        CustomMinimumSize = new Vector2(300, 500);
+        CustomMinimumSize = new Vector2(300, 0);
         AnchorLeft = 1.0f;
         AnchorRight = 1.0f;
-        AnchorTop = 0.0f;
-        AnchorBottom = 1.0f;
+        AnchorTop = 0.07f;
+        AnchorBottom = 0.78f;
         OffsetLeft = -310;
         OffsetRight = -10;
-        OffsetTop = 10;
-        OffsetBottom = -10;
+        OffsetTop = 0;
+        OffsetBottom = 0;
         GrowHorizontal = GrowDirection.Begin;
 
         // Semi-transparent dark background
@@ -107,8 +107,11 @@ public partial class CombatLogPanel : PanelContainer
         int lastCombat = -1;
         int lastTurn = -1;
 
-        foreach (var entry in history)
+        // Iterate in reverse so the most recent combat/turn appears at the top
+        for (int i = history.Count - 1; i >= 0; i--)
         {
+            var entry = history[i];
+
             // Combat header
             if (entry.CombatNumber != lastCombat)
             {
@@ -140,12 +143,12 @@ public partial class CombatLogPanel : PanelContainer
 
         _lastKnownCount = history.Count;
 
-        // Auto-scroll to bottom
-        CallDeferred(nameof(ScrollToBottom));
+        // Scroll to top to show most recent
+        CallDeferred(nameof(ScrollToTop));
     }
 
-    private void ScrollToBottom()
+    private void ScrollToTop()
     {
-        _scroll.ScrollVertical = (int)_scroll.GetVScrollBar().MaxValue;
+        _scroll.ScrollVertical = 0;
     }
 }

@@ -18,6 +18,8 @@ dotnet build          # Builds and copies DLL + JSON to game's mods/ folder
 dotnet publish        # Also exports .pck via Godot (requires GodotPath in Directory.Build.props)
 ```
 
+**Do NOT build automatically after every change.** Only build when the user explicitly asks. When the user says "build", run `dotnet build` which compiles and auto-deploys the DLL + manifest to the game's mods folder.
+
 The build auto-deploys to: `<Sts2Path>/mods/CombatLog/`
 
 Game path is auto-discovered via `Sts2PathDiscovery.props` (Steam registry + common paths). Override manually in `Directory.Build.props` if needed:
