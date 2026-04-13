@@ -202,6 +202,7 @@ When you need to find how a game API works (e.g., "how do I get X property from 
 
 ## Resources
 
+- **[Spire Codex](https://github.com/ptrlrd/spire-codex)** ⭐ — Comprehensive reverse-engineered database and REST API with structured STS2 game data (cards, relics, monsters, events, all 14 languages). **Check this first when looking up any game data, IDs, or resource paths.** Live site: [spire-codex.com](https://spire-codex.com)
 - [ModTemplate Wiki](https://github.com/Alchyr/ModTemplate-StS2/wiki)
 - [BaseLib Wiki](https://alchyr.github.io/BaseLib-Wiki/)
 - [Harmony Docs](https://harmony.pardeike.net/)

@@ -88,11 +88,16 @@ public partial class CombatLogPanel : PanelContainer
     {
         if (@event is InputEventKey key && key.Pressed && !key.Echo && key.Keycode == Key.H)
         {
-            _isShown = !_isShown;
-            Visible = _isShown;
-            if (_isShown) RefreshList();
+            Toggle();
             GetViewport().SetInputAsHandled();
         }
+    }
+
+    public void Toggle()
+    {
+        _isShown = !_isShown;
+        Visible = _isShown;
+        if (_isShown) RefreshList();
     }
 
     private void OnHistoryChanged()
