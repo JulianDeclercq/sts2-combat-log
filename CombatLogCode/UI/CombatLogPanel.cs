@@ -159,15 +159,17 @@ public partial class CombatLogPanel : PanelContainer
 
     private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
     {
+        var displayText = string.IsNullOrEmpty(entry.PlayerName)
+            ? entry.CardName
+            : $"{entry.CardName} [{entry.PlayerName}]";
         var label = new Label();
-        label.Text = $"    {entry.CardName}";
+        label.Text = $"    {displayText}";
         label.AddThemeColorOverride("font_color", CardLinkColor);
         label.MouseFilter = Control.MouseFilterEnum.Stop;
 
         if (entry.Card is not null)
         {
             var card = entry.Card;
-            label.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
             label.TooltipText = "Click to inspect";
 
             // Hover: highlight + show native game tooltip
@@ -197,7 +199,7 @@ public partial class CombatLogPanel : PanelContainer
         else
         {
             // Non-interactive entry (no card reference)
-            label.Text = $"    {entry.CardName}";
+            label.Text = $"    {displayText}";
             label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
         }
 
