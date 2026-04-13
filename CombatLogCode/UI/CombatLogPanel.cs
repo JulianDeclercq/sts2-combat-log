@@ -160,7 +160,7 @@ public partial class CombatLogPanel : PanelContainer
     private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
     {
         var label = new Label();
-        label.Text = $"    \u25B8 {entry.CardName}";
+        label.Text = $"    {entry.CardName}";
         label.AddThemeColorOverride("font_color", CardLinkColor);
         label.MouseFilter = Control.MouseFilterEnum.Stop;
 
@@ -175,7 +175,7 @@ public partial class CombatLogPanel : PanelContainer
             {
                 label.AddThemeColorOverride("font_color", CardLinkHoverColor);
                 var hoverTip = new CardHoverTip(card);
-                NHoverTipSet.CreateAndShow(label, hoverTip, HoverTipAlignment.None);
+                NHoverTipSet.CreateAndShow(label, hoverTip, HoverTipAlignment.Left);
             };
 
             label.MouseExited += () =>
