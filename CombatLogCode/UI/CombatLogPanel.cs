@@ -1,10 +1,8 @@
 using Godot;
-using MegaCrit.Sts2.Core.Assets;
-using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
+using MegaCrit.Sts2.Core.Nodes.Screens;
 
 namespace CombatLog.CombatLogCode.UI;
 
@@ -19,7 +17,9 @@ public partial class CombatLogPanel : PanelContainer
     private Label _header = null!;
     private bool _isShown;
     private int _lastKnownCount;
-    private Control? _cardPreview;
+
+    private static readonly Color CardLinkColor = new(0.6f, 0.85f, 1.0f);
+    private static readonly Color CardLinkHoverColor = new(1.0f, 0.95f, 0.5f);
 
     private static CombatLogPanel? _instance;
     public static CombatLogPanel? Instance => _instance;
@@ -91,7 +91,6 @@ public partial class CombatLogPanel : PanelContainer
             _isShown = !_isShown;
             Visible = _isShown;
             if (_isShown) RefreshList();
-            else DismissCardPreview();
             GetViewport().SetInputAsHandled();
         }
     }
@@ -161,73 +160,79 @@ public partial class CombatLogPanel : PanelContainer
     private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
     {
         var label = new Label();
-        label.Text = $"    {entry.CardName}";
-        label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        label.Text = $"    \u25B8 {entry.CardName}";
+        label.AddThemeColorOverride("font_color", CardLinkColor);
         label.MouseFilter = Control.MouseFilterEnum.Stop;
 
         if (entry.Card is not null)
         {
             var card = entry.Card;
+            label.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+            label.TooltipText = "Click to inspect";
 
-            // Hover: show native game tooltip
+            // Hover: highlight + show native game tooltip
             label.MouseEntered += () =>
             {
-                label.AddThemeColorOverride("font_color", new Color(1.0f, 0.9f, 0.4f));
+                label.AddThemeColorOverride("font_color", CardLinkHoverColor);
                 var hoverTip = new CardHoverTip(card);
                 NHoverTipSet.CreateAndShow(label, hoverTip, HoverTipAlignment.None);
             };
 
             label.MouseExited += () =>
             {
-                label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+                label.AddThemeColorOverride("font_color", CardLinkColor);
                 NHoverTipSet.Remove(label);
             };
 
-            // Click: show full card preview
+            // Click: open the game's full inspect-card screen (with "Show Upgrade" toggle)
             label.GuiInput += (@event) =>
             {
                 if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
-                    ToggleCardPreview(card);
+                {
+                    NHoverTipSet.Remove(label);
+                    OpenInspectScreen(card);
+                }
             };
+        }
+        else
+        {
+            // Non-interactive entry (no card reference)
+            label.Text = $"    {entry.CardName}";
+            label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
         }
 
         return label;
     }
 
-    private void ToggleCardPreview(CardModel card)
+    private void OpenInspectScreen(CardModel card)
     {
-        // If clicking same card or any card while preview is open, dismiss first
-        DismissCardPreview();
-
-        // Load game's card hover scene
-        var container = PreloadManager.Cache
-            .GetScene("res://scenes/ui/card_hover_tip.tscn")
-            .Instantiate<Control>();
-
-        var nCard = container.GetNode<NCard>("%Card");
-
-        // Position to the left of the panel
-        container.Position = new Vector2(-350, 100);
-
-        _cardPreview = container;
-        AddChild(container);
-
-        container.TreeEntered += () =>
+        var inspectScreen = FindInspectCardScreen();
+        if (inspectScreen is null)
         {
-            Callable.From(() =>
-            {
-                nCard.Model = card;
-                nCard.UpdateVisuals(PileType.Deck, CardPreviewMode.Normal);
-            }).CallDeferred();
-        };
+            GD.PrintErr("[CombatLog] Could not locate NInspectCardScreen in scene tree.");
+            return;
+        }
+
+        try
+        {
+            inspectScreen.OpenInspectScreen(card);
+        }
+        catch (Exception e)
+        {
+            GD.PrintErr($"[CombatLog] Failed to open inspect screen: {e.Message}");
+        }
     }
 
-    private void DismissCardPreview()
+    private NInspectCardScreen? FindInspectCardScreen()
     {
-        if (_cardPreview is not null)
+        var root = GetTree()?.Root;
+        if (root is null) return null;
+
+        // Search the whole tree (owned: false because the screen isn't owned by our scene)
+        foreach (var node in root.FindChildren("*", nameof(NInspectCardScreen), recursive: true, owned: false))
         {
-            _cardPreview.QueueFree();
-            _cardPreview = null;
+            if (node is NInspectCardScreen screen) return screen;
         }
+        return null;
     }
 }
