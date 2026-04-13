@@ -2,6 +2,7 @@ using Godot;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 
@@ -172,13 +173,9 @@ public partial class CombatLogPanel : PanelContainer
         _ => CardLinkColor
     };
 
-    private static string? GetCardTypeIconPath(CardType type) => type switch
-    {
-        CardType.Attack => "res://images/packed/card_library/type_sort_attack.png",
-        CardType.Skill => "res://images/packed/card_library/type_sort_skill.png",
-        CardType.Power => "res://images/packed/card_library/type_sort_power.png",
-        _ => null
-    };
+    private const string TinyCardScenePath = "res://scenes/cards/tiny_card.tscn";
+    private static PackedScene? _tinyCardScene;
+    private const float CardIconSize = 24;
 
     private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
     {
@@ -195,20 +192,17 @@ public partial class CombatLogPanel : PanelContainer
             hbox.AddThemeConstantOverride("separation", 4);
             hbox.MouseFilter = Control.MouseFilterEnum.Stop;
 
-            // Card type icon
-            var iconPath = GetCardTypeIconPath(card.Type);
-            if (iconPath is not null)
+            // Card icon: use the game's NTinyCard scene
+            _tinyCardScene ??= GD.Load<PackedScene>(TinyCardScenePath);
+            if (_tinyCardScene is not null)
             {
-                var tex = GD.Load<Texture2D>(iconPath);
-                if (tex is not null)
-                {
-                    var icon = new TextureRect();
-                    icon.Texture = tex;
-                    icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-                    icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-                    icon.CustomMinimumSize = new Vector2(16, 16);
-                    hbox.AddChild(icon);
-                }
+                var tinyCard = _tinyCardScene.Instantiate<NTinyCard>();
+                tinyCard.CustomMinimumSize = new Vector2(CardIconSize, CardIconSize);
+                tinyCard.Scale = new Vector2(0.4f, 0.4f);
+                hbox.AddChild(tinyCard);
+                // Defer SetCard until node enters the scene tree (when _Ready() has fired)
+                var cardRef = card;
+                tinyCard.TreeEntered += () => tinyCard.SetCard(cardRef);
             }
 
             // Card name label

@@ -152,6 +152,16 @@ In `.csproj`:
 - `IncludeVirtualMembers="true"` is needed to access protected/virtual members
 - Even with publicizer, some properties on `CardModel` (like `Name`, `ModelId`) aren't accessible at compile time — use reflection as fallback
 
+## UI Design Principle: Reuse Game Scenes
+
+When the user shows a screenshot of an existing game UI component and asks to match it, **immediately look for the game's scene or node that renders it** — do not try to approximate it with static image paths or manual compositing first.
+
+- Search for `.tscn` scene paths (e.g., `res://scenes/cards/tiny_card.tscn`)
+- Instantiate the scene and set its data via `Traverse` if needed
+- This produces pixel-perfect results in one attempt instead of iterating through wrong approaches
+
+**Example:** When asked to match the Compendium run history card icons, the right first move is finding and instantiating `NTinyCard` — not loading type icon PNGs.
+
 ## Known Gotchas
 
 1. **`CombatManager.StartTurn` fires twice per round** — once for player, once for enemy. Use `SetupPlayerTurn` for player-only turn tracking.
@@ -169,9 +179,14 @@ In `.csproj`:
 
 When you need to find how a game API works (e.g., "how do I get X property from Y class"):
 
-1. **Check the official wikis first** — but note BaseLib docs are often incomplete (e.g., CardModel docs are "TODO")
-2. **Search GitHub for other STS2 mods** — this is the most reliable method. Community mods are the real documentation.
-3. **If a property isn't accessible via publicizer**, use Harmony's `Traverse.Create(instance).Property<T>("PropName").Value`
+1. **Use `ilspycmd` to decompile the class** — this is the fastest, most reliable method. `ilspycmd` is installed globally. Always start here before guessing property names or grepping binary strings.
+   ```bash
+   ilspycmd "path/to/sts2.dll" -t "MegaCrit.Sts2.Core.Nodes.Cards.NTinyCard"
+   ```
+   The publicized DLL is at: `.godot/mono/temp/obj/Debug/PublicizedAssemblies/sts2.*/sts2.dll`
+2. **Search GitHub for other STS2 mods** — community mods are the real documentation.
+3. **Check the official wikis** — but note BaseLib docs are often incomplete (e.g., CardModel docs are "TODO")
+4. **If a property isn't accessible via publicizer**, use Harmony's `Traverse.Create(instance).Property<T>("PropName").Value`
 
 ### Reference Mods (known-good API usage examples)
 
