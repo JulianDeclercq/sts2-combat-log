@@ -1,5 +1,7 @@
+using System.Reflection;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 
 namespace CombatLog.CombatLogCode.UI;
@@ -11,6 +13,7 @@ public partial class HistoryButton : TextureRect
     private const float TweenDuration = 0.1f;
 
     private Tween? _tween;
+    private static IHoverTip? _cachedHoverTip;
 
     public override void _Ready()
     {
@@ -34,6 +37,16 @@ public partial class HistoryButton : TextureRect
         GuiInput += OnGuiInput;
     }
 
+    private static IHoverTip CreateHoverTip(string title, string description)
+    {
+        object box = new HoverTip();
+        var type = typeof(HoverTip);
+        type.GetProperty("Title")!.SetValue(box, title);
+        type.GetProperty("Description")!.SetValue(box, description);
+        type.GetProperty("Id")!.SetValue(box, "CombatLog_HistoryButton");
+        return (IHoverTip)box;
+    }
+
     private NDiscardPileButton? FindDiscardButton()
     {
         return GetParent()
@@ -42,10 +55,6 @@ public partial class HistoryButton : TextureRect
             .FirstOrDefault();
     }
 
-    /// <summary>
-    /// Trigger the discard button's native OnFocus to show the hover tip at the
-    /// exact same position, then suppress the visual side-effects (scale bump).
-    /// </summary>
     private void OnMouseEntered()
     {
         _tween?.Kill();
@@ -56,12 +65,24 @@ public partial class HistoryButton : TextureRect
         var discardBtn = FindDiscardButton();
         if (discardBtn is null) return;
 
-        // Show hover tip via the game's own code path
-        Traverse.Create(discardBtn).Method("OnFocus").GetValue();
+        var trav = Traverse.Create(discardBtn);
 
-        // Kill the discard button's scale animation and reset
-        Traverse.Create(discardBtn).Field<Tween>("_bumpTween").Value?.Kill();
+        // Swap the discard button's hover tip with ours
+        var originalTip = trav.Field("_hoverTip").GetValue();
+        _cachedHoverTip ??= CreateHoverTip(
+            "Combat Log (F)",
+            "Tracks all cards played during the run.\n\nClick to toggle the combat log.");
+        trav.Field("_hoverTip").SetValue(_cachedHoverTip);
+
+        // Show via game's code path for perfect positioning
+        trav.Method("OnFocus").GetValue();
+
+        // Suppress discard button's scale animation
+        trav.Field<Tween>("_bumpTween").Value?.Kill();
         discardBtn.Scale = Vector2.One;
+
+        // Restore original hover tip so discard pile still works
+        trav.Field("_hoverTip").SetValue(originalTip);
     }
 
     private void OnMouseExited()
@@ -74,8 +95,9 @@ public partial class HistoryButton : TextureRect
         var discardBtn = FindDiscardButton();
         if (discardBtn is null) return;
 
-        Traverse.Create(discardBtn).Method("OnUnfocus").GetValue();
-        Traverse.Create(discardBtn).Field<Tween>("_bumpTween").Value?.Kill();
+        var trav = Traverse.Create(discardBtn);
+        trav.Method("OnUnfocus").GetValue();
+        trav.Field<Tween>("_bumpTween").Value?.Kill();
         discardBtn.Scale = Vector2.One;
     }
 

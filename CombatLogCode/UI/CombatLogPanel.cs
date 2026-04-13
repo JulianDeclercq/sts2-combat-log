@@ -1,4 +1,5 @@
 using Godot;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
@@ -54,7 +55,7 @@ public partial class CombatLogPanel : PanelContainer
 
         // Header
         _header = new Label();
-        _header.Text = "Combat Log (H to toggle)";
+        _header.Text = "Combat Log (F to toggle)";
         _header.HorizontalAlignment = HorizontalAlignment.Center;
         _header.AddThemeColorOverride("font_color", new Color(0.9f, 0.8f, 0.3f));
         vbox.AddChild(_header);
@@ -86,7 +87,7 @@ public partial class CombatLogPanel : PanelContainer
 
     public override void _UnhandledKeyInput(InputEvent @event)
     {
-        if (@event is InputEventKey key && key.Pressed && !key.Echo && key.Keycode == Key.H)
+        if (@event is InputEventKey key && key.Pressed && !key.Echo && key.Keycode == Key.F)
         {
             Toggle();
             GetViewport().SetInputAsHandled();
@@ -162,53 +163,94 @@ public partial class CombatLogPanel : PanelContainer
         _scroll.ScrollVertical = 0;
     }
 
+    private static Color GetRarityColor(CardRarity rarity) => rarity switch
+    {
+        CardRarity.Basic => new Color(0.7f, 0.7f, 0.7f),
+        CardRarity.Common => new Color(1f, 1f, 1f),
+        CardRarity.Uncommon => new Color(0.5f, 0.9f, 0.3f),
+        CardRarity.Rare => new Color(1f, 0.85f, 0.2f),
+        _ => CardLinkColor
+    };
+
+    private static string? GetCardTypeIconPath(CardType type) => type switch
+    {
+        CardType.Attack => "res://images/packed/card_library/type_sort_attack.png",
+        CardType.Skill => "res://images/packed/card_library/type_sort_skill.png",
+        CardType.Power => "res://images/packed/card_library/type_sort_power.png",
+        _ => null
+    };
+
     private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
     {
         var displayText = string.IsNullOrEmpty(entry.PlayerName)
             ? entry.CardName
             : $"{entry.CardName} [{entry.PlayerName}]";
-        var label = new Label();
-        label.Text = $"    {displayText}";
-        label.AddThemeColorOverride("font_color", CardLinkColor);
-        label.MouseFilter = Control.MouseFilterEnum.Stop;
 
         if (entry.Card is not null)
         {
             var card = entry.Card;
-            label.TooltipText = "Click to inspect";
+            var rarityColor = GetRarityColor(card.Rarity);
+
+            var hbox = new HBoxContainer();
+            hbox.AddThemeConstantOverride("separation", 4);
+            hbox.MouseFilter = Control.MouseFilterEnum.Stop;
+
+            // Card type icon
+            var iconPath = GetCardTypeIconPath(card.Type);
+            if (iconPath is not null)
+            {
+                var tex = GD.Load<Texture2D>(iconPath);
+                if (tex is not null)
+                {
+                    var icon = new TextureRect();
+                    icon.Texture = tex;
+                    icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+                    icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+                    icon.CustomMinimumSize = new Vector2(16, 16);
+                    hbox.AddChild(icon);
+                }
+            }
+
+            // Card name label
+            var label = new Label();
+            label.Text = displayText;
+            label.AddThemeColorOverride("font_color", rarityColor);
+            hbox.AddChild(label);
 
             // Hover: highlight + show native game tooltip
-            label.MouseEntered += () =>
+            hbox.MouseEntered += () =>
             {
                 label.AddThemeColorOverride("font_color", CardLinkHoverColor);
                 var hoverTip = new CardHoverTip(card);
-                NHoverTipSet.CreateAndShow(label, hoverTip, HoverTipAlignment.Left);
+                NHoverTipSet.CreateAndShow(hbox, hoverTip, HoverTipAlignment.Left);
             };
 
-            label.MouseExited += () =>
+            hbox.MouseExited += () =>
             {
-                label.AddThemeColorOverride("font_color", CardLinkColor);
-                NHoverTipSet.Remove(label);
+                label.AddThemeColorOverride("font_color", rarityColor);
+                NHoverTipSet.Remove(hbox);
             };
 
-            // Click: open the game's full inspect-card screen (with "Show Upgrade" toggle)
-            label.GuiInput += (@event) =>
+            // Click: open the game's full inspect-card screen
+            hbox.GuiInput += (@event) =>
             {
                 if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
                 {
-                    NHoverTipSet.Remove(label);
+                    NHoverTipSet.Remove(hbox);
                     OpenInspectScreen(card);
                 }
             };
+
+            return hbox;
         }
         else
         {
             // Non-interactive entry (no card reference)
+            var label = new Label();
             label.Text = $"    {displayText}";
             label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            return label;
         }
-
-        return label;
     }
 
     private void OpenInspectScreen(CardModel card)
