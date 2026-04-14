@@ -12,7 +12,6 @@ public partial class CardEntryRow : HBoxContainer
 {
     private static readonly Color CardLinkColor = new(0.6f, 0.85f, 1.0f);
     private static readonly Color CardLinkHoverColor = new(1.0f, 0.95f, 0.5f);
-    private static readonly Color TargetNameColor = new(0.7f, 0.6f, 0.5f);
     private static readonly Color NoCardColor = new(0.6f, 0.6f, 0.6f);
 
     private const string TinyCardScenePath = "res://scenes/cards/tiny_card.tscn";
@@ -20,12 +19,18 @@ public partial class CardEntryRow : HBoxContainer
     private static PackedScene? _tinyCardScene;
 
     private readonly CardPlayEvent _entry;
+    private readonly IReadOnlyList<DamageReceivedEvent> _damages;
     private readonly CreatureHighlighter _highlighter;
     private readonly Action<CardModel> _openInspect;
 
-    public CardEntryRow(CardPlayEvent entry, CreatureHighlighter highlighter, Action<CardModel> openInspect)
+    public CardEntryRow(
+        CardPlayEvent entry,
+        IReadOnlyList<DamageReceivedEvent>? damages,
+        CreatureHighlighter highlighter,
+        Action<CardModel> openInspect)
     {
         _entry = entry;
+        _damages = damages ?? Array.Empty<DamageReceivedEvent>();
         _highlighter = highlighter;
         _openInspect = openInspect;
     }
@@ -38,7 +43,6 @@ public partial class CardEntryRow : HBoxContainer
 
         if (_entry.Card is null)
         {
-            // Non-interactive fallback (no card reference)
             var fallback = new Label();
             fallback.Text = $"    {displayText}";
             fallback.AddThemeColorOverride("font_color", NoCardColor);
@@ -63,34 +67,34 @@ public partial class CardEntryRow : HBoxContainer
             tinyCard.Ready += () => tinyCard.SetCard(cardRef);
         }
 
-        var label = new Label();
-        label.Text = displayText;
-        label.AddThemeColorOverride("font_color", rarityColor);
-        AddChild(label);
+        var nameLabel = new Label();
+        nameLabel.Text = displayText;
+        nameLabel.AddThemeColorOverride("font_color", rarityColor);
+        AddChild(nameLabel);
 
-        if (!string.IsNullOrEmpty(_entry.TargetName))
-        {
-            var targetLabel = new Label();
-            targetLabel.Text = $"→ {_entry.TargetName}";
-            targetLabel.AddThemeColorOverride("font_color", TargetNameColor);
-            AddChild(targetLabel);
-        }
-
-        var targetCombatId = _entry.TargetCombatId;
         var playerCombatId = _entry.PlayerCombatId;
+        var fallbackTargetId = _entry.TargetCombatId;
+        var victimIds = _damages
+            .Where(d => d.VictimCombatId.HasValue)
+            .Select(d => d.VictimCombatId)
+            .Distinct()
+            .ToList();
 
         MouseEntered += () =>
         {
-            label.AddThemeColorOverride("font_color", CardLinkHoverColor);
+            nameLabel.AddThemeColorOverride("font_color", CardLinkHoverColor);
             var hoverTip = new CardHoverTip(card);
             NHoverTipSet.CreateAndShow(this, hoverTip, HoverTipAlignment.Left);
-            _highlighter.Highlight(targetCombatId);
             _highlighter.Highlight(playerCombatId);
+            if (victimIds.Count > 0)
+                foreach (var vid in victimIds) _highlighter.Highlight(vid);
+            else
+                _highlighter.Highlight(fallbackTargetId);
         };
 
         MouseExited += () =>
         {
-            label.AddThemeColorOverride("font_color", rarityColor);
+            nameLabel.AddThemeColorOverride("font_color", rarityColor);
             NHoverTipSet.Remove(this);
             _highlighter.Clear();
         };

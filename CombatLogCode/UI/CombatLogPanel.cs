@@ -106,32 +106,116 @@ public partial class CombatLogPanel : PanelContainer
         foreach (var child in _list.GetChildren())
             child.QueueFree();
 
+        var items = BuildRenderItems(history);
+
         int lastCombat = -1;
         int lastTurn = -1;
 
-        for (int i = history.Count - 1; i >= 0; i--)
+        for (int i = items.Count - 1; i >= 0; i--)
         {
-            var ev = history[i];
+            var item = items[i];
 
-            if (ev.CombatNumber != lastCombat)
+            if (item.CombatNumber != lastCombat)
             {
-                lastCombat = ev.CombatNumber;
+                lastCombat = item.CombatNumber;
                 lastTurn = -1;
-                _list.AddChild(BuildCombatHeader(ev.CombatNumber));
+                _list.AddChild(BuildCombatHeader(item.CombatNumber));
             }
 
-            if (ev.TurnNumber != lastTurn)
+            if (item.TurnNumber != lastTurn)
             {
-                lastTurn = ev.TurnNumber;
-                _list.AddChild(BuildTurnHeader(ev.TurnNumber));
+                lastTurn = item.TurnNumber;
+                _list.AddChild(BuildTurnHeader(item.TurnNumber));
             }
 
-            var row = BuildRow(ev);
-            if (row is not null) _list.AddChild(row);
+            AppendRowsFor(item);
         }
 
         _lastKnownCount = history.Count;
         CallDeferred(nameof(ScrollToTop));
+    }
+
+    private void AppendRowsFor(RenderItem item)
+    {
+        switch (item)
+        {
+            case CardRenderItem c:
+                _list.AddChild(new CardEntryRow(c.Card, c.Damages, _highlighter, OpenInspectScreen));
+                foreach (var g in GroupDamagesByVictim(c.Damages))
+                    _list.AddChild(new DamageSubRow(
+                        g.VictimName, g.VictimCombatId, c.Card.PlayerCombatId,
+                        g.HpLost, g.Blocked, g.Killed, _highlighter));
+                break;
+            case DamageRenderItem d:
+                _list.AddChild(new DamageEntryRow(d.Damage, _highlighter));
+                break;
+        }
+    }
+
+    private readonly record struct VictimGroup(
+        string VictimName, uint? VictimCombatId, int HpLost, int Blocked, bool Killed);
+
+    private static List<VictimGroup> GroupDamagesByVictim(IReadOnlyList<DamageReceivedEvent> damages)
+    {
+        var result = new List<VictimGroup>();
+        var indexByKey = new Dictionary<string, int>();
+        foreach (var d in damages)
+        {
+            var key = d.VictimCombatId?.ToString() ?? $"name:{d.VictimName}";
+            if (indexByKey.TryGetValue(key, out var idx))
+            {
+                var existing = result[idx];
+                result[idx] = existing with
+                {
+                    HpLost = existing.HpLost + d.HpLost,
+                    Blocked = existing.Blocked + d.BlockedDamage,
+                    Killed = existing.Killed || d.WasKilled,
+                };
+            }
+            else
+            {
+                indexByKey[key] = result.Count;
+                result.Add(new VictimGroup(d.VictimName, d.VictimCombatId, d.HpLost, d.BlockedDamage, d.WasKilled));
+            }
+        }
+        return result;
+    }
+
+    private abstract record RenderItem(int CombatNumber, int TurnNumber);
+    private sealed record CardRenderItem(CardPlayEvent Card, IReadOnlyList<DamageReceivedEvent> Damages)
+        : RenderItem(Card.CombatNumber, Card.TurnNumber);
+    private sealed record DamageRenderItem(DamageReceivedEvent Damage)
+        : RenderItem(Damage.CombatNumber, Damage.TurnNumber);
+
+    private static List<RenderItem> BuildRenderItems(IReadOnlyList<LogEvent> history)
+    {
+        var items = new List<RenderItem>();
+        for (int i = 0; i < history.Count; i++)
+        {
+            switch (history[i])
+            {
+                case CardPlayEvent card:
+                {
+                    var damages = new List<DamageReceivedEvent>();
+                    while (i + 1 < history.Count
+                           && history[i + 1] is DamageReceivedEvent d
+                           && d.TurnNumber == card.TurnNumber
+                           && d.CombatNumber == card.CombatNumber
+                           && !string.IsNullOrEmpty(d.SourceCardName)
+                           && d.SourceCardName == card.CardName)
+                    {
+                        damages.Add(d);
+                        i++;
+                    }
+                    items.Add(new CardRenderItem(card, damages));
+                    break;
+                }
+                case DamageReceivedEvent damage:
+                    items.Add(new DamageRenderItem(damage));
+                    break;
+            }
+        }
+        return items;
     }
 
     private void ScrollToTop() => _scroll.ScrollVertical = 0;
@@ -153,11 +237,6 @@ public partial class CombatLogPanel : PanelContainer
         return label;
     }
 
-    private Control? BuildRow(LogEvent ev) => ev switch
-    {
-        CardPlayEvent card => new CardEntryRow(card, _highlighter, OpenInspectScreen),
-        _ => null
-    };
 
     private void OpenInspectScreen(CardModel card)
     {
