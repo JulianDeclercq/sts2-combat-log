@@ -36,6 +36,7 @@ public static class CardPlayPatch
 
             var targetName = __1?.Name ?? "";
             var targetCombatId = __1?.CombatId;
+            var playerCombatId = __instance.Owner?.Creature?.CombatId;
 
             // MP DIAGNOSTIC: log owner NetId + local player ID to detect whether
             // OnPlayWrapper fires for remote players' cards or only local plays.
@@ -52,7 +53,7 @@ public static class CardPlayPatch
                 GD.PrintErr($"[CombatLog MP] diag failed: {diagEx.Message}");
             }
 
-            CombatLogTracker.RecordPlay(cardName, __instance, playerName, targetName, targetCombatId);
+            CombatLogTracker.RecordPlay(cardName, __instance, playerName, targetName, targetCombatId, playerCombatId);
         }
         catch (Exception e)
         {
