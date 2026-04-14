@@ -150,6 +150,8 @@ Logs location:
 
 Open with any of: `~`, `` ` ``, `*`, `'`
 
+Full reference (all 37 commands, decompiled): `docs/dev-console.md`.
+
 Useful commands:
 - `help` — list all commands
 - `help <command>` — detailed help
