@@ -16,8 +16,11 @@ public partial class CombatLogPanel : PanelContainer
     private ScrollContainer _scroll = null!;
     private Label _header = null!;
     private CreatureHighlighter _highlighter = null!;
+    private Godot.Timer _refreshDebounce = null!;
     private bool _isShown;
     private int _lastKnownCount;
+
+    private const double RefreshDebounceSec = 0.25;
 
     private static CombatLogPanel? _instance;
     public static CombatLogPanel? Instance => _instance;
@@ -68,6 +71,10 @@ public partial class CombatLogPanel : PanelContainer
         Visible = false;
         _isShown = false;
 
+        _refreshDebounce = new Godot.Timer { OneShot = true };
+        AddChild(_refreshDebounce);
+        _refreshDebounce.Timeout += RefreshList;
+
         CombatLogTracker.OnHistoryChanged += OnHistoryChanged;
     }
 
@@ -95,7 +102,8 @@ public partial class CombatLogPanel : PanelContainer
 
     private void OnHistoryChanged()
     {
-        if (_isShown) RefreshList();
+        if (!_isShown) return;
+        _refreshDebounce.Start(RefreshDebounceSec);
     }
 
     private void RefreshList()
@@ -128,12 +136,57 @@ public partial class CombatLogPanel : PanelContainer
                 _list.AddChild(BuildTurnHeader(item.TurnNumber));
             }
 
-            var row = BuildRow(item);
-            if (row is not null) _list.AddChild(row);
+            AppendRowsFor(item);
         }
 
         _lastKnownCount = history.Count;
         CallDeferred(nameof(ScrollToTop));
+    }
+
+    private void AppendRowsFor(RenderItem item)
+    {
+        switch (item)
+        {
+            case CardRenderItem c:
+                _list.AddChild(new CardEntryRow(c.Card, c.Damages, _highlighter, OpenInspectScreen));
+                foreach (var g in GroupDamagesByVictim(c.Damages))
+                    _list.AddChild(new DamageSubRow(
+                        g.VictimName, g.VictimCombatId, c.Card.PlayerCombatId,
+                        g.HpLost, g.Blocked, g.Killed, _highlighter));
+                break;
+            case DamageRenderItem d:
+                _list.AddChild(new DamageEntryRow(d.Damage, _highlighter));
+                break;
+        }
+    }
+
+    private readonly record struct VictimGroup(
+        string VictimName, uint? VictimCombatId, int HpLost, int Blocked, bool Killed);
+
+    private static List<VictimGroup> GroupDamagesByVictim(IReadOnlyList<DamageReceivedEvent> damages)
+    {
+        var result = new List<VictimGroup>();
+        var indexByKey = new Dictionary<string, int>();
+        foreach (var d in damages)
+        {
+            var key = d.VictimCombatId?.ToString() ?? $"name:{d.VictimName}";
+            if (indexByKey.TryGetValue(key, out var idx))
+            {
+                var existing = result[idx];
+                result[idx] = existing with
+                {
+                    HpLost = existing.HpLost + d.HpLost,
+                    Blocked = existing.Blocked + d.BlockedDamage,
+                    Killed = existing.Killed || d.WasKilled,
+                };
+            }
+            else
+            {
+                indexByKey[key] = result.Count;
+                result.Add(new VictimGroup(d.VictimName, d.VictimCombatId, d.HpLost, d.BlockedDamage, d.WasKilled));
+            }
+        }
+        return result;
     }
 
     private abstract record RenderItem(int CombatNumber, int TurnNumber);
@@ -192,12 +245,6 @@ public partial class CombatLogPanel : PanelContainer
         return label;
     }
 
-    private Control? BuildRow(RenderItem item) => item switch
-    {
-        CardRenderItem c => new CardEntryRow(c.Card, c.Damages, _highlighter, OpenInspectScreen),
-        DamageRenderItem d => new DamageEntryRow(d.Damage, _highlighter),
-        _ => null
-    };
 
     private void OpenInspectScreen(CardModel card)
     {

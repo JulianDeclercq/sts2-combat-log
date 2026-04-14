@@ -8,7 +8,7 @@ using MegaCrit.Sts2.Core.Nodes.HoverTips;
 
 namespace CombatLog.CombatLogCode.UI.Rows;
 
-public partial class CardEntryRow : VBoxContainer
+public partial class CardEntryRow : HBoxContainer
 {
     private static readonly Color CardLinkColor = new(0.6f, 0.85f, 1.0f);
     private static readonly Color CardLinkHoverColor = new(1.0f, 0.95f, 0.5f);
@@ -54,13 +54,8 @@ public partial class CardEntryRow : VBoxContainer
         var card = _entry.Card;
         var rarityColor = GetRarityColor(card.Rarity);
 
-        AddThemeConstantOverride("separation", 0);
+        AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
-
-        var header = new HBoxContainer();
-        header.AddThemeConstantOverride("separation", 4);
-        header.MouseFilter = MouseFilterEnum.Pass;
-        AddChild(header);
 
         _tinyCardScene ??= GD.Load<PackedScene>(TinyCardScenePath);
         if (_tinyCardScene is not null)
@@ -68,7 +63,7 @@ public partial class CardEntryRow : VBoxContainer
             var tinyCard = _tinyCardScene.Instantiate<NTinyCard>();
             tinyCard.CustomMinimumSize = new Vector2(CardIconSize, CardIconSize);
             tinyCard.Scale = new Vector2(0.4f, 0.4f);
-            header.AddChild(tinyCard);
+            AddChild(tinyCard);
             var cardRef = card;
             tinyCard.Ready += () => tinyCard.SetCard(cardRef);
         }
@@ -76,43 +71,22 @@ public partial class CardEntryRow : VBoxContainer
         var nameLabel = new Label();
         nameLabel.Text = displayText;
         nameLabel.AddThemeColorOverride("font_color", rarityColor);
-        header.AddChild(nameLabel);
+        AddChild(nameLabel);
 
-        var victimGroups = GroupDamagesByVictim(_damages);
-
-        if (victimGroups.Count == 0 && !string.IsNullOrEmpty(_entry.TargetName))
+        // Target label only when no damage — damage sub-rows render the victim(s) below.
+        if (_damages.Count == 0 && !string.IsNullOrEmpty(_entry.TargetName))
         {
             var targetLabel = new Label();
             targetLabel.Text = $"→ {_entry.TargetName}";
             targetLabel.AddThemeColorOverride("font_color", TargetNameColor);
-            header.AddChild(targetLabel);
-        }
-        else
-        {
-            foreach (var g in victimGroups)
-            {
-                var sub = new HBoxContainer();
-                sub.AddThemeConstantOverride("separation", 4);
-                sub.MouseFilter = MouseFilterEnum.Pass;
-                AddChild(sub);
-
-                var indent = new Label { Text = "    " };
-                sub.AddChild(indent);
-
-                var victimLabel = new Label();
-                victimLabel.Text = $"→ {g.VictimName}:";
-                victimLabel.AddThemeColorOverride("font_color", TargetNameColor);
-                sub.AddChild(victimLabel);
-
-                DamageColors.AppendDamageLabels(sub, g.HpLost, g.Blocked, g.Killed);
-            }
+            AddChild(targetLabel);
         }
 
         var playerCombatId = _entry.PlayerCombatId;
         var fallbackTargetId = _entry.TargetCombatId;
-        var victimIds = victimGroups
-            .Where(g => g.VictimCombatId.HasValue)
-            .Select(g => g.VictimCombatId)
+        var victimIds = _damages
+            .Where(d => d.VictimCombatId.HasValue)
+            .Select(d => d.VictimCombatId)
             .Distinct()
             .ToList();
 
@@ -153,44 +127,4 @@ public partial class CardEntryRow : VBoxContainer
         CardRarity.Rare => new Color(1f, 0.85f, 0.2f),
         _ => CardLinkColor
     };
-
-    private readonly record struct VictimGroup(
-        string VictimName,
-        uint? VictimCombatId,
-        int HpLost,
-        int Blocked,
-        bool Killed);
-
-    private static List<VictimGroup> GroupDamagesByVictim(IReadOnlyList<DamageReceivedEvent> damages)
-    {
-        var result = new List<VictimGroup>();
-        var indexByKey = new Dictionary<string, int>();
-
-        foreach (var d in damages)
-        {
-            var key = d.VictimCombatId?.ToString() ?? $"name:{d.VictimName}";
-            if (indexByKey.TryGetValue(key, out var idx))
-            {
-                var existing = result[idx];
-                result[idx] = existing with
-                {
-                    HpLost = existing.HpLost + d.HpLost,
-                    Blocked = existing.Blocked + d.BlockedDamage,
-                    Killed = existing.Killed || d.WasKilled
-                };
-            }
-            else
-            {
-                indexByKey[key] = result.Count;
-                result.Add(new VictimGroup(
-                    d.VictimName,
-                    d.VictimCombatId,
-                    d.HpLost,
-                    d.BlockedDamage,
-                    d.WasKilled));
-            }
-        }
-
-        return result;
-    }
 }
