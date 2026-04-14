@@ -1,32 +1,23 @@
+using CombatLog.CombatLogCode.Events;
+using CombatLog.CombatLogCode.UI.Rows;
 using Godot;
-using MegaCrit.Sts2.Core.Entities.Cards;
-using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Nodes.Cards;
-using MegaCrit.Sts2.Core.Nodes.Combat;
-using MegaCrit.Sts2.Core.Nodes.HoverTips;
-using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 
 namespace CombatLog.CombatLogCode.UI;
 
 /// <summary>
-/// A toggleable panel (press H) showing all cards played during the run.
-/// Injected into the scene tree via a Harmony patch on a suitable game node.
+/// Toggleable panel (F) showing events logged during the run.
+/// Injected by UiInjectionPatch. Dispatches each LogEvent to its row type.
 /// </summary>
 public partial class CombatLogPanel : PanelContainer
 {
     private VBoxContainer _list = null!;
     private ScrollContainer _scroll = null!;
     private Label _header = null!;
+    private CreatureHighlighter _highlighter = null!;
     private bool _isShown;
     private int _lastKnownCount;
-
-    private static readonly Color CardLinkColor = new(0.6f, 0.85f, 1.0f);
-    private static readonly Color CardLinkHoverColor = new(1.0f, 0.95f, 0.5f);
-    private static readonly Color TargetNameColor = new(0.7f, 0.6f, 0.5f);
-
-    private readonly List<NCreature> _highlightedCreatures = new();
 
     private static CombatLogPanel? _instance;
     public static CombatLogPanel? Instance => _instance;
@@ -34,8 +25,8 @@ public partial class CombatLogPanel : PanelContainer
     public override void _Ready()
     {
         _instance = this;
+        _highlighter = new CreatureHighlighter(this);
 
-        // Panel styling
         CustomMinimumSize = new Vector2(300, 0);
         AnchorLeft = 1.0f;
         AnchorRight = 1.0f;
@@ -47,7 +38,6 @@ public partial class CombatLogPanel : PanelContainer
         OffsetBottom = 0;
         GrowHorizontal = GrowDirection.Begin;
 
-        // Semi-transparent dark background
         var styleBox = new StyleBoxFlat();
         styleBox.BgColor = new Color(0.05f, 0.05f, 0.1f, 0.85f);
         styleBox.BorderColor = new Color(0.4f, 0.4f, 0.6f, 0.8f);
@@ -59,17 +49,14 @@ public partial class CombatLogPanel : PanelContainer
         var vbox = new VBoxContainer();
         AddChild(vbox);
 
-        // Header
         _header = new Label();
         _header.Text = "Combat Log (F to toggle)";
         _header.HorizontalAlignment = HorizontalAlignment.Center;
         _header.AddThemeColorOverride("font_color", new Color(0.9f, 0.8f, 0.3f));
         vbox.AddChild(_header);
 
-        // Separator
         vbox.AddChild(new HSeparator());
 
-        // Scrollable list
         _scroll = new ScrollContainer();
         _scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
         vbox.AddChild(_scroll);
@@ -81,7 +68,6 @@ public partial class CombatLogPanel : PanelContainer
         Visible = false;
         _isShown = false;
 
-        // Listen for changes
         CombatLogTracker.OnHistoryChanged += OnHistoryChanged;
     }
 
@@ -115,216 +101,78 @@ public partial class CombatLogPanel : PanelContainer
     private void RefreshList()
     {
         var history = CombatLogTracker.History;
-
-        // Only rebuild if count changed
         if (history.Count == _lastKnownCount) return;
 
-        // Clear existing
         foreach (var child in _list.GetChildren())
             child.QueueFree();
 
         int lastCombat = -1;
         int lastTurn = -1;
 
-        // Iterate in reverse so the most recent combat/turn appears at the top
         for (int i = history.Count - 1; i >= 0; i--)
         {
-            var entry = history[i];
+            var ev = history[i];
 
-            // Combat header
-            if (entry.CombatNumber != lastCombat)
+            if (ev.CombatNumber != lastCombat)
             {
-                lastCombat = entry.CombatNumber;
+                lastCombat = ev.CombatNumber;
                 lastTurn = -1;
-                var combatLabel = new Label();
-                combatLabel.Text = $"--- Combat {entry.CombatNumber} ---";
-                combatLabel.HorizontalAlignment = HorizontalAlignment.Center;
-                combatLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.8f, 1.0f));
-                _list.AddChild(combatLabel);
+                _list.AddChild(BuildCombatHeader(ev.CombatNumber));
             }
 
-            // Turn header
-            if (entry.TurnNumber != lastTurn)
+            if (ev.TurnNumber != lastTurn)
             {
-                lastTurn = entry.TurnNumber;
-                var turnLabel = new Label();
-                turnLabel.Text = $"  Turn {entry.TurnNumber}:";
-                turnLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.5f));
-                _list.AddChild(turnLabel);
+                lastTurn = ev.TurnNumber;
+                _list.AddChild(BuildTurnHeader(ev.TurnNumber));
             }
 
-            // Card entry (interactive)
-            var cardControl = CreateCardEntry(entry);
-            _list.AddChild(cardControl);
+            var row = BuildRow(ev);
+            if (row is not null) _list.AddChild(row);
         }
 
         _lastKnownCount = history.Count;
-
-        // Scroll to top to show most recent
         CallDeferred(nameof(ScrollToTop));
     }
 
-    private void ScrollToTop()
+    private void ScrollToTop() => _scroll.ScrollVertical = 0;
+
+    private static Label BuildCombatHeader(int combatNumber)
     {
-        _scroll.ScrollVertical = 0;
+        var label = new Label();
+        label.Text = $"--- Combat {combatNumber} ---";
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.AddThemeColorOverride("font_color", new Color(0.6f, 0.8f, 1.0f));
+        return label;
     }
 
-    private static Color GetRarityColor(CardRarity rarity) => rarity switch
+    private static Label BuildTurnHeader(int turnNumber)
     {
-        CardRarity.Basic => new Color(0.7f, 0.7f, 0.7f),
-        CardRarity.Common => new Color(1f, 1f, 1f),
-        CardRarity.Uncommon => new Color(0.5f, 0.9f, 0.3f),
-        CardRarity.Rare => new Color(1f, 0.85f, 0.2f),
-        _ => CardLinkColor
+        var label = new Label();
+        label.Text = $"  Turn {turnNumber}:";
+        label.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.5f));
+        return label;
+    }
+
+    private Control? BuildRow(LogEvent ev) => ev switch
+    {
+        CardPlayEvent card => new CardEntryRow(card, _highlighter, OpenInspectScreen),
+        _ => null
     };
-
-    private const string TinyCardScenePath = "res://scenes/cards/tiny_card.tscn";
-    private static PackedScene? _tinyCardScene;
-    private const float CardIconSize = 24;
-
-    private Control CreateCardEntry(CombatLogTracker.CardPlayEntry entry)
-    {
-        var displayText = string.IsNullOrEmpty(entry.PlayerName)
-            ? entry.CardName
-            : $"{entry.CardName} [{entry.PlayerName}]";
-
-        if (entry.Card is not null)
-        {
-            var card = entry.Card;
-            var rarityColor = GetRarityColor(card.Rarity);
-
-            var hbox = new HBoxContainer();
-            hbox.AddThemeConstantOverride("separation", 4);
-            hbox.MouseFilter = Control.MouseFilterEnum.Stop;
-
-            // Card icon: use the game's NTinyCard scene
-            _tinyCardScene ??= GD.Load<PackedScene>(TinyCardScenePath);
-            if (_tinyCardScene is not null)
-            {
-                var tinyCard = _tinyCardScene.Instantiate<NTinyCard>();
-                tinyCard.CustomMinimumSize = new Vector2(CardIconSize, CardIconSize);
-                tinyCard.Scale = new Vector2(0.4f, 0.4f);
-                hbox.AddChild(tinyCard);
-                // Defer SetCard until after _Ready() (Ready fires after _Ready completes)
-                var cardRef = card;
-                tinyCard.Ready += () => tinyCard.SetCard(cardRef);
-            }
-
-            // Card name label
-            var label = new Label();
-            label.Text = displayText;
-            label.AddThemeColorOverride("font_color", rarityColor);
-            hbox.AddChild(label);
-
-            // Target name (only for single-target cards)
-            if (!string.IsNullOrEmpty(entry.TargetName))
-            {
-                var targetLabel = new Label();
-                targetLabel.Text = $"→ {entry.TargetName}";
-                targetLabel.AddThemeColorOverride("font_color", TargetNameColor);
-                hbox.AddChild(targetLabel);
-            }
-
-            // Hover: highlight + show native game tooltip + highlight target + player creatures
-            var targetCombatId = entry.TargetCombatId;
-            var playerCombatId = entry.PlayerCombatId;
-            hbox.MouseEntered += () =>
-            {
-                label.AddThemeColorOverride("font_color", CardLinkHoverColor);
-                var hoverTip = new CardHoverTip(card);
-                NHoverTipSet.CreateAndShow(hbox, hoverTip, HoverTipAlignment.Left);
-                HighlightCreature(targetCombatId);
-                HighlightCreature(playerCombatId);
-            };
-
-            hbox.MouseExited += () =>
-            {
-                label.AddThemeColorOverride("font_color", rarityColor);
-                NHoverTipSet.Remove(hbox);
-                ClearCreatureHighlights();
-            };
-
-            // Click: open the game's full inspect-card screen
-            hbox.GuiInput += (@event) =>
-            {
-                if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
-                {
-                    NHoverTipSet.Remove(hbox);
-                    OpenInspectScreen(card);
-                }
-            };
-
-            return hbox;
-        }
-        else
-        {
-            // Non-interactive entry (no card reference)
-            var label = new Label();
-            label.Text = $"    {displayText}";
-            label.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            return label;
-        }
-    }
-
-    private void HighlightCreature(uint? combatId)
-    {
-        if (combatId is null) return;
-
-        var combatRoom = FindCombatRoom();
-        if (combatRoom is null) return;
-
-        foreach (var creatureNode in combatRoom.CreatureNodes)
-        {
-            if (creatureNode.Entity?.CombatId == combatId)
-            {
-                _highlightedCreatures.Add(creatureNode);
-                creatureNode.ShowSingleSelectReticle();
-                return;
-            }
-        }
-    }
-
-    private void ClearCreatureHighlights()
-    {
-        foreach (var creatureNode in _highlightedCreatures)
-        {
-            if (GodotObject.IsInstanceValid(creatureNode))
-            {
-                creatureNode.HideSingleSelectReticle();
-            }
-        }
-        _highlightedCreatures.Clear();
-    }
-
-    private NCombatRoom? FindCombatRoom()
-    {
-        var root = GetTree()?.Root;
-        if (root is null) return null;
-
-        foreach (var node in root.FindChildren("*", recursive: true, owned: false))
-        {
-            if (node is NCombatRoom room) return room;
-        }
-        return null;
-    }
 
     private void OpenInspectScreen(CardModel card)
     {
-        var inspectScreen = FindInspectCardScreen();
+        var inspectScreen = FindInspectCardScreen() ?? NInspectCardScreen.Create();
         if (inspectScreen is null)
         {
-            inspectScreen = NInspectCardScreen.Create();
-            if (inspectScreen is null)
-            {
-                GD.PrintErr("[CombatLog] Failed to create NInspectCardScreen.");
-                return;
-            }
-            GetTree().Root.AddChild(inspectScreen);
+            GD.PrintErr("[CombatLog] Failed to create NInspectCardScreen.");
+            return;
         }
+        if (inspectScreen.GetParent() is null)
+            GetTree().Root.AddChild(inspectScreen);
 
         try
         {
-            inspectScreen.Open(new System.Collections.Generic.List<CardModel> { card }, 0);
+            inspectScreen.Open(new List<CardModel> { card }, 0);
         }
         catch (Exception e)
         {
@@ -337,7 +185,6 @@ public partial class CombatLogPanel : PanelContainer
         var root = GetTree()?.Root;
         if (root is null) return null;
 
-        // Search the whole tree (owned: false because the screen isn't owned by our scene)
         foreach (var node in root.FindChildren("*", nameof(NInspectCardScreen), recursive: true, owned: false))
         {
             if (node is NInspectCardScreen screen) return screen;

@@ -38,14 +38,13 @@ Mature combat log mod. Known features (1.6.0):
 - `affects_gameplay: false` → MP-safe (mod allowed without version match)
 - `PlatformUtil.GetPlayerName` used for owner resolution (resolves to Steam name if available)
 
-## Critical Open Question (BLOCKS MP story)
+## MP Hook Verification (non-blocker)
 
 **Does `CardModel.OnPlayWrapper` fire on each client for every player's cards, or only for the local player's?**
 
-- If it fires on each client for every card played anywhere → we get full MP log via Harmony locally, no net sync needed.
-- If it fires only for local plays → we must either patch a networked entry point (e.g. `PlayCardAction.ExecuteAction` on the receiving side) or sync events ourselves.
+Partial result (2026-04-14, host perspective only): host sees remote client cards with `Owner.NetId` populated correctly (`isLocal=False`, `owner=1000 (Test Client 1)`) alongside its own plays. Reverse direction (client seeing host plays) not captured because both instances on the same machine compete for `godot.log`.
 
-Test plan: see `docs/mp-test-onplaywrapper.md` (TODO) — run `/test-multiplayer 2`, play cards on both instances, compare `godot.log` entries per instance. Diagnostic log line added to `CardPlayPatch.Prefix`.
+No longer blocking: real MP testing happens across separate machines, not from here. Assume symmetric behavior until evidence says otherwise — proceed with roadmap step 2.
 
 ## Feature Additions
 
@@ -135,12 +134,11 @@ Decision gate: run the `OnPlayWrapper` MP test before committing to damage/relic
 
 ## Sequencing
 
-1. **MP hook verification** (diagnostic log + `/test-multiplayer` run) — must complete first
-2. Architecture refactor — unified event timeline, split UI files, per-player attribution everywhere
-3. Damage received tracking (research + patch + row type, verify MP again)
-4. Relic procs (research + patch + row type, verify MP again)
-5. Visual polish (tabs, collapse, animation)
-6. Settings (keybind, position)
+1. Architecture refactor — unified event timeline, split UI files, per-player attribution everywhere
+2. Damage received tracking (research + patch + row type, verify MP again)
+3. Relic procs (research + patch + row type, verify MP again)
+4. Visual polish (tabs, collapse, animation)
+5. Settings (keybind, position)
 
 Each step: build, manual test (solo AND 2-player MP), commit. Keep `affects_gameplay:false` throughout.
 
