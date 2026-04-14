@@ -20,44 +20,51 @@ public static class CardPlayPatch
         try
         {
             var cardName = __instance.Title ?? __instance.GetType().Name;
-            var playerName = "";
-            try
-            {
-                if (__instance.Owner is not null)
-                {
-                    var name = PlatformUtil.GetPlayerName(
-                        RunManager.Instance.NetService.Platform,
-                        __instance.Owner.NetId);
-                    if (!string.IsNullOrEmpty(name) && !ulong.TryParse(name, out _))
-                        playerName = name;
-                }
-            }
-            catch { }
+            ResolveOwner(__instance, out var ownerNetId, out var ownerName, out var isLocal);
 
             var targetName = __1?.Name ?? "";
             var targetCombatId = __1?.CombatId;
             var playerCombatId = __instance.Owner?.Creature?.CombatId;
 
-            // MP DIAGNOSTIC: log owner NetId + local player ID to detect whether
-            // OnPlayWrapper fires for remote players' cards or only local plays.
-            try
-            {
-                var platform = RunManager.Instance.NetService.Platform;
-                ulong localId = PlatformUtil.GetLocalPlayerId(platform);
-                ulong ownerId = __instance.Owner?.NetId ?? 0UL;
-                bool isLocal = ownerId == localId;
-                GD.Print($"[CombatLog MP] card={cardName} owner={ownerId} ({playerName}) local={localId} isLocal={isLocal}");
-            }
-            catch (Exception diagEx)
-            {
-                GD.PrintErr($"[CombatLog MP] diag failed: {diagEx.Message}");
-            }
-
-            CombatLogTracker.RecordPlay(cardName, __instance, playerName, targetName, targetCombatId, playerCombatId);
+            CombatLogTracker.RecordCardPlay(
+                cardName, __instance,
+                ownerNetId, ownerName, isLocal,
+                targetName, targetCombatId, playerCombatId);
         }
         catch (Exception e)
         {
             GD.PrintErr($"[CombatLog] Error recording card play: {e.Message}");
         }
+    }
+
+    private static void ResolveOwner(CardModel card, out ulong? netId, out string name, out bool isLocal)
+    {
+        netId = null;
+        name = "";
+        isLocal = true;
+
+        try
+        {
+            if (card.Owner is null) return;
+            netId = card.Owner.NetId;
+
+            var netService = RunManager.Instance?.NetService;
+            if (netService is null) return;
+
+            var resolved = PlatformUtil.GetPlayerName(netService.Platform, card.Owner.NetId);
+            if (!string.IsNullOrEmpty(resolved) && !ulong.TryParse(resolved, out _))
+                name = resolved;
+
+            try
+            {
+                var localNetId = Traverse.Create(netService).Property("LocalPlayer").Field("NetId").GetValue<ulong>();
+                isLocal = localNetId == card.Owner.NetId;
+            }
+            catch
+            {
+                // LocalPlayer not resolvable — keep default (treat as local to match solo behavior)
+            }
+        }
+        catch { }
     }
 }

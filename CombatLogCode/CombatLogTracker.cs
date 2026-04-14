@@ -1,26 +1,32 @@
+using CombatLog.CombatLogCode.Events;
 using MegaCrit.Sts2.Core.Models;
 
 namespace CombatLog.CombatLogCode;
 
 public static class CombatLogTracker
 {
-    public record CardPlayEntry(
-        string CardName, CardModel? Card, int TurnNumber, int OrderInTurn,
-        int CombatNumber, string PlayerName, string TargetName,
-        uint? TargetCombatId, uint? PlayerCombatId);
-
-    public static List<CardPlayEntry> History { get; } = new();
+    public static List<LogEvent> History { get; } = new();
     public static int CurrentTurn { get; set; } = 1;
     public static int CurrentCombat { get; set; } = 0;
 
     private static int _orderCounter;
 
-    public static void RecordPlay(string cardName, CardModel? card, string playerName = "",
+    public static void RecordCardPlay(
+        string cardName, CardModel? card,
+        ulong? ownerNetId, string ownerName, bool isLocal,
         string targetName = "", uint? targetCombatId = null, uint? playerCombatId = null)
     {
         _orderCounter++;
-        History.Add(new CardPlayEntry(cardName, card, CurrentTurn, _orderCounter,
-            CurrentCombat, playerName, targetName, targetCombatId, playerCombatId));
+        var e = new CardPlayEvent(
+            cardName, card, targetName, targetCombatId, playerCombatId,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
+    public static void Append(LogEvent e)
+    {
+        History.Add(e);
         OnHistoryChanged?.Invoke();
     }
 
