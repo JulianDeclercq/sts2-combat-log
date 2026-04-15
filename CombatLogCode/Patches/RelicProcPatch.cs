@@ -22,6 +22,7 @@ public static class RelicProcPatch
             var ownerNetId = __instance.Owner?.NetId;
             OwnerResolver.Resolve(ownerNetId, out var ownerName, out var isLocal);
 
+            var ownerCreatureId = __instance.Owner?.Creature?.CombatId;
             var targetNames = new List<string>();
             var targetIds = new List<uint?>();
             if (__0 is not null)
@@ -29,6 +30,8 @@ public static class RelicProcPatch
                 foreach (var c in __0)
                 {
                     if (c is null) continue;
+                    // Drop self-targets (e.g. parameterless Flash() targets Owner.Creature).
+                    if (ownerCreatureId.HasValue && c.CombatId == ownerCreatureId) continue;
                     targetNames.Add(c.Name);
                     targetIds.Add(c.CombatId);
                 }
