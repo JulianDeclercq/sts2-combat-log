@@ -1,5 +1,6 @@
 using CombatLog.CombatLogCode.Events;
 using Godot;
+using MegaCrit.Sts2.Core.Nodes.Relics;
 
 namespace CombatLog.CombatLogCode.UI.Rows;
 
@@ -12,6 +13,7 @@ public partial class RelicEntryRow : HBoxContainer
 
     private readonly RelicProcEvent _entry;
     private readonly CreatureHighlighter _highlighter;
+    private NRelicInventoryHolder? _hoveredHolder;
 
     public RelicEntryRow(RelicProcEvent entry, CreatureHighlighter highlighter)
     {
@@ -60,6 +62,8 @@ public partial class RelicEntryRow : HBoxContainer
         {
             foreach (var l in labels) l.AddThemeColorOverride("font_color", HoverColor);
             foreach (var id in targetIds) _highlighter.Highlight(id);
+            _hoveredHolder = FindRelicHolder(_entry.RelicId);
+            _hoveredHolder?.OnFocus();
         };
 
         MouseExited += () =>
@@ -67,6 +71,9 @@ public partial class RelicEntryRow : HBoxContainer
             for (int i = 0; i < labels.Count; i++)
                 labels[i].AddThemeColorOverride("font_color", originalColors[i]);
             _highlighter.Clear();
+            if (_hoveredHolder is not null && GodotObject.IsInstanceValid(_hoveredHolder))
+                _hoveredHolder.OnUnfocus();
+            _hoveredHolder = null;
         };
     }
 
@@ -77,5 +84,22 @@ public partial class RelicEntryRow : HBoxContainer
         label.AddThemeColorOverride("font_color", color);
         AddChild(label);
         return label;
+    }
+
+    private NRelicInventoryHolder? FindRelicHolder(string relicId)
+    {
+        var root = GetTree()?.Root;
+        if (root is null) return null;
+
+        foreach (var node in root.FindChildren("*", recursive: true, owned: false))
+        {
+            if (node is not NRelicInventory inv) continue;
+            foreach (var holder in inv.RelicNodes)
+            {
+                if (holder._relic?.Model?.Id.Entry == relicId)
+                    return holder;
+            }
+        }
+        return null;
     }
 }
