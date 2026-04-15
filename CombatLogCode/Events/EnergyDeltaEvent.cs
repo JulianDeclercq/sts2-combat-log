@@ -1,7 +1,11 @@
+using Godot;
+
 namespace CombatLog.CombatLogCode.Events;
 
 public sealed record EnergyDeltaEvent(
     int Delta,
+    Texture2D? Icon,
+    uint? PlayerCombatId,
     ulong? OwnerNetId,
     string OwnerName,
     bool IsLocal,

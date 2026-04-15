@@ -156,13 +156,13 @@ public partial class CombatLogPanel : PanelContainer
                 foreach (var p in r.Powers)
                     _list.AddChild(new PowerSubRow(p, _highlighter));
                 foreach (var e in r.EnergyDeltas)
-                    _list.AddChild(new EnergySubRow(e));
+                    _list.AddChild(new EnergySubRow(e, _highlighter));
                 break;
             case PowerRenderItem p:
                 _list.AddChild(new PowerEntryRow(p.Power, _highlighter));
                 break;
             case EnergyRenderItem e:
-                _list.AddChild(new EnergySubRow(e.Energy));
+                _list.AddChild(new EnergySubRow(e.Energy, _highlighter));
                 break;
         }
     }

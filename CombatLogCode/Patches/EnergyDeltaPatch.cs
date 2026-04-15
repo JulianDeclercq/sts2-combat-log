@@ -1,7 +1,9 @@
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Helpers;
 
 namespace CombatLog.CombatLogCode.Patches;
 
@@ -19,7 +21,26 @@ public static class EnergyDeltaPatch
             var ownerNetId = __1?.NetId;
             OwnerResolver.Resolve(ownerNetId, out var ownerName, out var isLocal);
 
-            CombatLogTracker.RecordEnergyDelta(delta, ownerNetId, ownerName, isLocal);
+            var playerCombatId = __1?.Creature?.CombatId;
+
+            Texture2D? icon = null;
+            try
+            {
+                var cardPool = __1?.Character?.CardPool;
+                if (cardPool is not null)
+                {
+                    var path = EnergyIconHelper.GetPath(cardPool);
+                    icon = PreloadManager.Cache.GetTexture2D(path);
+                }
+            }
+            catch (Exception iconEx)
+            {
+                GD.PrintErr($"[CombatLog] Error loading energy icon: {iconEx.Message}");
+            }
+
+            CombatLogTracker.RecordEnergyDelta(
+                delta, icon, playerCombatId,
+                ownerNetId, ownerName, isLocal);
         }
         catch (Exception e)
         {

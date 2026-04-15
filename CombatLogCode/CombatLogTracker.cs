@@ -58,12 +58,12 @@ public static class CombatLogTracker
     }
 
     public static void RecordEnergyDelta(
-        int delta,
+        int delta, Texture2D? icon, uint? playerCombatId,
         ulong? ownerNetId, string ownerName, bool isLocal)
     {
         _orderCounter++;
         var e = new EnergyDeltaEvent(
-            delta,
+            delta, icon, playerCombatId,
             ownerNetId, ownerName, isLocal,
             CurrentTurn, _orderCounter, CurrentCombat);
         Append(e);
