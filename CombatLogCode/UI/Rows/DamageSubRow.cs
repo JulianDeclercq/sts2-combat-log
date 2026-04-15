@@ -21,8 +21,8 @@ internal static class DamageSubRow
         entry.Ready += () =>
         {
             entry._icon.Visible = false;
-            entry.SetTopText($"→ {victimName}");
-            entry.SetBottomText(BuildDamageLine(hpLost, blocked, killed));
+            entry._bottomLabel.Visible = false;
+            entry.SetTopText($"→ {victimName}: {BuildDamageLine(hpLost, blocked, killed)}");
         };
 
         entry.MouseEntered += () =>
