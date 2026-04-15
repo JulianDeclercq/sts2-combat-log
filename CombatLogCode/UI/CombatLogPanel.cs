@@ -27,7 +27,7 @@ public partial class CombatLogPanel : PanelContainer
         _instance = this;
         _highlighter = new CreatureHighlighter(this);
 
-        CustomMinimumSize = new Vector2(300, 0);
+        CustomMinimumSize = new Vector2(350, 0);
         AnchorLeft = 1.0f;
         AnchorRight = 1.0f;
         AnchorTop = 0.07f;
