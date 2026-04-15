@@ -31,12 +31,16 @@ Mature combat log mod. Known features (1.6.0):
 ## Current State
 
 - Toggle overlay (F key) — right side
-- Cards played history: card, turn, combat, player name, target
-- NTinyCard scene reuse for authentic card art
-- Hover: native game tooltip + target creature reticle highlight
-- Click: opens native NInspectCardScreen
+- Unified `LogEvent` base + per-type subtypes (`CardPlayEvent`, `DamageReceivedEvent`, `RelicProcEvent`) under `CombatLogCode/Events/`
+- Every event carries `OwnerNetId` + `OwnerName` + `IsLocal` (resolved via `OwnerResolver` → `PlatformUtil.GetPlayerName`)
+- Cards played history: card, turn, combat, owner name, target — NTinyCard scene reuse
+- Damage-received tracking: blocked / HP lost / overkill / kill flag, source = card name when present else dealer name. Damage rows nested under parent card row (`DamageSubRow`)
+- Relic procs tracking: relic name + id, targets, owner. Hover relic log row → fires `RelicBar.OnFocus` for native tooltip; remote procs skip hover (avoid misattribution); self-targets dropped
+- Hover card row: native game tooltip + `CreatureHighlighter` reticle on owner + target
+- Click card row: opens native `NInspectCardScreen`
+- UI split into `UI/Rows/{CardEntryRow, DamageEntryRow, DamageSubRow, RelicEntryRow}.cs`; `CombatLogPanel.cs` is container/refresh only (debounced)
+- Skip splash logo patch; singleplayer-test launches with `-fastcontinue`
 - `affects_gameplay: false` → MP-safe (mod allowed without version match)
-- `PlatformUtil.GetPlayerName` used for owner resolution (resolves to Steam name if available)
 
 ## MP Hook Verification (non-blocker)
 
@@ -48,53 +52,24 @@ No longer blocking: real MP testing happens across separate machines, not from h
 
 ## Feature Additions
 
-### 1. Per-Player Attribution (foundational, must work in MP)
+### 1. Per-Player Attribution — DONE (commit 3390ea1)
 
-- Replace `playerName` string with `(NetId, DisplayName)` pair on every event.
-- Derive from `__instance.Owner.NetId` (current) plus `RunManager.Instance.NetService.LocalPlayer` for "is this me?" flag.
+- `LogEvent` base carries `OwnerNetId` + `OwnerName` + `IsLocal` on every event.
+- Resolved via `OwnerResolver` from `__instance.Owner.NetId` + `PlatformUtil.GetPlayerName`.
 
-### 2. Damage Received Split (blocked / unblocked)
+### 2. Damage Received Split — DONE (commits 98a7799, f08c824, 3c46404, f879129)
 
-Goal: per incoming hit, record pre-block damage, block absorbed, HP lost. Attribute to source (enemy + intent card/attack name if derivable) AND to the *player* taking damage.
+Hooked via Harmony postfix on `CombatHistory.DamageReceived(CombatState, Creature receiver, Creature? dealer, DamageResult, CardModel? cardSource)` — game's own per-damage history call, sync, gated to combat by caller at `CreatureCmd.Damage:176`. Cleaner than patching `Creature.TakeDamage` (predicted) — source attribution comes free via `cardSource`.
 
-Research needed:
-- Decompile `Creature.TakeDamage` / `ApplyDamage` flow
-- Hook `DamageCmd` or patch on `Creature` HP delta
-- Check `BeforeAttack` / `AfterAttack` hooks (may be async state machines — prefer concrete method patch)
-- Verify the patched method runs on all clients or only one — mirror MP question above
-- Source attribution: attacker creature + action context; victim attribution: which player's `Creature` is the target
+`DamageResult` provides `BlockedDamage`, `UnblockedDamage`, `OverkillDamage`, `WasTargetKilled`, `WasFullyBlocked`. Owner NetId derived from `receiver.Player?.NetId ?? dealer?.Player?.NetId`.
 
-Tracker addition:
-```csharp
-public record DamageReceivedEntry(
-    ulong VictimNetId, string VictimName, uint? VictimCombatId,
-    string SourceName, uint? SourceCombatId,
-    int RawDamage, int Blocked, int HpLost,
-    int TurnNumber, int CombatNumber);
-```
+UI: damage rows nested under parent card row via `DamageSubRow`; refresh debounced to fix flicker; always-emit (target-label fallback dropped) so attacks show staggered.
 
-UI: interleave with card plays in same timeline, different row style (red accent). Hover source → highlight attacker creature. Hover victim → highlight victim creature.
+### 3. Relic Procs — DONE (commits 555dea6, 5121b91, 7599839, 5f2314d)
 
-### 3. Relic Procs (per-player)
+Hooked via Harmony postfix on `RelicModel.Flash(IEnumerable<Creature>)` — single patch catches both overloads since parameterless `Flash()` delegates here. Cleaner than the predicted `AfterPowerAmountChanged` route.
 
-Goal: record each relic trigger with context (which relic, which player's relic, when, what it did if derivable).
-
-Research needed:
-- `RelicModel` lifecycle hooks — `AfterPowerAmountChanged`, `OnPlay` style hooks per relic subclass
-- Prefer patching `RelicModel` virtual methods or a common base trigger point
-- Enumerate active relics via `RunManager.Instance` or per-player model
-- Confirm MP behavior: do all clients see remote players' relic procs?
-
-Tracker addition:
-```csharp
-public record RelicProcEntry(
-    ulong OwnerNetId, string OwnerName,
-    string RelicName, string RelicId,
-    string TriggerContext,
-    int TurnNumber, int CombatNumber);
-```
-
-UI: relic icon (reuse game scene if exists — `NTinyRelic` or similar; research). Subtle gold glow accent. Owner color stripe.
+Self-targets dropped (parameterless `Flash()` targets `Owner.Creature` redundantly). Hover relic row → fires `RelicBar.OnFocus` for native tooltip. Remote-player procs skip hover wiring to avoid misattribution to local relic bar.
 
 ### 4. Visual Polish Pass
 
@@ -106,22 +81,24 @@ UI: relic icon (reuse game scene if exists — `NTinyRelic` or similar; research
 - Font consistency: use game's theme font where possible
 - Per-combat summary footer: totals per player + combined
 
-## Architecture Changes
+## Architecture Changes — DONE
 
-### Tracker unification
-`CombatLogTracker` becomes hub for multiple event streams.
-- **B:** Single `LogEvent` base + subtypes (card/damage/relic), one list, every event carries `OwnerNetId` + `OwnerName`.
+### Tracker unification — done
+`CombatLogTracker` is hub for multiple event streams. Single `LogEvent` base + subtypes (`CardPlayEvent`, `DamageReceivedEvent`, `RelicProcEvent`) under `Events/`, one list, every event carries `OwnerNetId` + `OwnerName` + `IsLocal`.
 
-### Patches to add
-- `CombatLogCode/Patches/DamagePatch.cs` — hook damage pipeline
-- `CombatLogCode/Patches/RelicPatch.cs` — hook relic trigger
+### Patches added
+- `Patches/CardPlayPatch.cs`
+- `Patches/DamageReceivedPatch.cs` (uses `CombatHistory.DamageReceived`)
+- `Patches/RelicProcPatch.cs` (uses `RelicModel.Flash`)
+- `Patches/OwnerResolver.cs` — shared NetId → display name helper
+- `Patches/CombatPatch.cs`, `UiInjectionPatch.cs`, `SkipSplashPatch.cs`, `FastContinuePatch.cs`
 
-### UI refactor
-`CombatLogPanel.cs` at 343 lines. Extract:
-- `CardEntryRow.cs` — existing card row logic
-- `DamageEntryRow.cs` — new
-- `RelicEntryRow.cs` — new
-- `CombatLogPanel.cs` — container + refresh only
+### UI refactor — done
+- `UI/Rows/CardEntryRow.cs`
+- `UI/Rows/DamageEntryRow.cs` + `DamageSubRow.cs` + `DamageColors.cs`
+- `UI/Rows/RelicEntryRow.cs`
+- `UI/CombatLogPanel.cs` — container + debounced refresh only
+- `UI/CreatureHighlighter.cs` — shared reticle helper
 
 ## MP Fallback Strategy
 
@@ -134,13 +111,15 @@ Decision gate: run the `OnPlayWrapper` MP test before committing to damage/relic
 
 ## Sequencing
 
-1. Architecture refactor — unified event timeline, split UI files, per-player attribution everywhere
-2. Damage received tracking (research + patch + row type, verify MP again)
-3. Relic procs (research + patch + row type, verify MP again)
-4. Visual polish (tabs, collapse, animation)
+1. ~~Architecture refactor — unified event timeline, split UI files, per-player attribution everywhere~~ — DONE
+2. ~~Damage received tracking (research + patch + row type, verify MP again)~~ — DONE
+3. ~~Relic procs (research + patch + row type, verify MP again)~~ — DONE
+4. **Visual polish (tabs, collapse, animation)** — NEXT
 5. Settings (keybind, position)
 
 Each step: build, manual test (solo AND 2-player MP), commit. Keep `affects_gameplay:false` throughout.
+
+**Outstanding MP verification:** cross-machine 2-player test of damage + relic events still pending (same-machine `godot.log` contention blocked it during card-play check). Run before step 4 commits.
 
 ## Non-Goals (for now)
 
