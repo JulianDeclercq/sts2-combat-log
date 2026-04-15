@@ -20,9 +20,12 @@ public static class PowerReceivedPatch
             var power = __1;
             var applier = __3;
 
-            // decimal is always whole in practice (PowerModel.SetAmount casts to int)
+            // decimal is always whole in practice (PowerModel.SetAmount casts to int).
+            // PowerReceived fires BEFORE SetAmount mutates (PowerCmd.Apply:525 and
+            // ModifyAmount:1393 — both call History.PowerReceived, then SetAmount with the
+            // post-apply total). So power.Amount here is pre-apply; compute post-state manually.
             var delta = (int)__2;
-            var newTotal = power.Amount;
+            var newTotal = power.Amount + delta;
 
             var powerId = power.Id?.Entry ?? power.GetType().Name;
             var powerTitle = power.Title?.GetFormattedText() ?? powerId;
