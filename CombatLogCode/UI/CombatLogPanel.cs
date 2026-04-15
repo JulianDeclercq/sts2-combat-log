@@ -258,10 +258,13 @@ public partial class CombatLogPanel : PanelContainer
                     while (i + 1 < history.Count
                            && history[i + 1].TurnNumber == relic.TurnNumber
                            && history[i + 1].CombatNumber == relic.CombatNumber
-                           && history[i + 1] is PowerReceivedEvent or EnergyDeltaEvent)
+                           && (history[i + 1] is PowerReceivedEvent or EnergyDeltaEvent
+                               || (history[i + 1] is DamageReceivedEvent dd
+                                   && string.IsNullOrEmpty(dd.SourceCardName))))
                     {
                         switch (history[i + 1])
                         {
+                            case DamageReceivedEvent d: damages.Add(d); break;
                             case PowerReceivedEvent p: powers.Add(p); break;
                             case EnergyDeltaEvent e: energies.Add(e); break;
                         }
