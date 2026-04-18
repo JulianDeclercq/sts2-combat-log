@@ -3,14 +3,13 @@ using Godot;
 namespace CombatLog.CombatLogCode.UI;
 
 /// <summary>
-/// Thin invisible strip on one edge of <see cref="CombatLogPanel"/>. Drag to resize.
-/// Right edge is anchored to viewport, so only Left/Top/Bottom are draggable.
-/// Width changes drive <c>CustomMinimumSize.X</c>; height changes drive <c>OffsetTop</c>/<c>OffsetBottom</c>
-/// (panel keeps its current top/bottom anchor band).
+/// Thin invisible strip on one edge or corner of <see cref="CombatLogPanel"/>. Drag to resize.
+/// Right edge is anchored to viewport, so only the left side and the two left corners are draggable.
+/// Width changes drive <c>CustomMinimumSize.X</c>; height changes drive <c>OffsetTop</c>/<c>OffsetBottom</c>.
 /// </summary>
 public partial class PanelEdgeHandle : Control
 {
-    public enum Edge { Left, Top, Bottom }
+    public enum Edge { Left, Top, Bottom, TopLeft, BottomLeft }
 
     public const float Thickness = 8f;
     public const float MinWidth = 250f;
@@ -49,6 +48,18 @@ public partial class PanelEdgeHandle : Control
                 OffsetTop = -Thickness; OffsetBottom = 0;
                 MouseDefaultCursorShape = CursorShape.Vsize;
                 break;
+            case Edge.TopLeft:
+                AnchorLeft = 0; AnchorRight = 0; AnchorTop = 0; AnchorBottom = 0;
+                OffsetLeft = 0; OffsetRight = Thickness;
+                OffsetTop = 0; OffsetBottom = Thickness;
+                MouseDefaultCursorShape = CursorShape.Fdiagsize;
+                break;
+            case Edge.BottomLeft:
+                AnchorLeft = 0; AnchorRight = 0; AnchorTop = 1; AnchorBottom = 1;
+                OffsetLeft = 0; OffsetRight = Thickness;
+                OffsetTop = -Thickness; OffsetBottom = 0;
+                MouseDefaultCursorShape = CursorShape.Bdiagsize;
+                break;
         }
         MouseFilter = MouseFilterEnum.Stop;
     }
@@ -82,38 +93,39 @@ public partial class PanelEdgeHandle : Control
 
     private void Apply(Vector2 mouse)
     {
-        switch (Kind)
-        {
-            case Edge.Left:
-                // Panel grows leftward — dragging mouse left INCREASES width.
-                var w = Math.Clamp(_startWidth + (_startMouse.X - mouse.X), MinWidth, MaxWidth);
-                _panel.CustomMinimumSize = new Vector2(w, _panel.CustomMinimumSize.Y);
-                break;
+        if (Kind is Edge.Left or Edge.TopLeft or Edge.BottomLeft)
+            ApplyWidth(mouse);
+        if (Kind is Edge.Top or Edge.TopLeft)
+            ApplyOffsetTop(mouse);
+        if (Kind is Edge.Bottom or Edge.BottomLeft)
+            ApplyOffsetBottom(mouse);
+    }
 
-            case Edge.Top:
-            {
-                var dy = mouse.Y - _startMouse.Y;
-                var newTop = _startOffsetTop + dy;
-                var span = AnchorSpanY();
-                var height = span + _panel.OffsetBottom - newTop;
-                if (height < MinHeight)
-                    newTop = span + _panel.OffsetBottom - MinHeight;
-                _panel.OffsetTop = newTop;
-                break;
-            }
+    private void ApplyWidth(Vector2 mouse)
+    {
+        // Panel grows leftward — dragging mouse left INCREASES width.
+        var w = Math.Clamp(_startWidth + (_startMouse.X - mouse.X), MinWidth, MaxWidth);
+        _panel.CustomMinimumSize = new Vector2(w, _panel.CustomMinimumSize.Y);
+    }
 
-            case Edge.Bottom:
-            {
-                var dy = mouse.Y - _startMouse.Y;
-                var newBot = _startOffsetBottom + dy;
-                var span = AnchorSpanY();
-                var height = span + newBot - _panel.OffsetTop;
-                if (height < MinHeight)
-                    newBot = MinHeight + _panel.OffsetTop - span;
-                _panel.OffsetBottom = newBot;
-                break;
-            }
-        }
+    private void ApplyOffsetTop(Vector2 mouse)
+    {
+        var newTop = _startOffsetTop + (mouse.Y - _startMouse.Y);
+        var span = AnchorSpanY();
+        var height = span + _panel.OffsetBottom - newTop;
+        if (height < MinHeight)
+            newTop = span + _panel.OffsetBottom - MinHeight;
+        _panel.OffsetTop = newTop;
+    }
+
+    private void ApplyOffsetBottom(Vector2 mouse)
+    {
+        var newBot = _startOffsetBottom + (mouse.Y - _startMouse.Y);
+        var span = AnchorSpanY();
+        var height = span + newBot - _panel.OffsetTop;
+        if (height < MinHeight)
+            newBot = MinHeight + _panel.OffsetTop - span;
+        _panel.OffsetBottom = newBot;
     }
 
     private float AnchorSpanY()

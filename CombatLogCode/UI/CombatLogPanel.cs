@@ -34,8 +34,8 @@ public partial class CombatLogPanel : Control
         AnchorBottom = 0.78f;
         OffsetLeft = -310;
         OffsetRight = -10;
-        OffsetTop = 0;
-        OffsetBottom = 0;
+        OffsetTop = 15;
+        OffsetBottom = 15;
         GrowHorizontal = GrowDirection.Begin;
         MouseFilter = MouseFilterEnum.Ignore;
 
@@ -77,6 +77,8 @@ public partial class CombatLogPanel : Control
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Left });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Top });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Bottom });
+        AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.TopLeft });
+        AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.BottomLeft });
 
         Visible = false;
         _isShown = false;
