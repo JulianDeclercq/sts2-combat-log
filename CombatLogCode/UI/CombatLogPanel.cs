@@ -18,6 +18,11 @@ public partial class CombatLogPanel : Control
     private CreatureHighlighter _highlighter = null!;
     private bool _isShown;
     private int _lastKnownCount;
+    private bool _dragging;
+    private Vector2 _dragStartMouse;
+    private float _dragStartOffsetRight;
+    private float _dragStartOffsetTop;
+    private float _dragStartOffsetBottom;
 
     private static CombatLogPanel? _instance;
     public static CombatLogPanel? Instance => _instance;
@@ -37,7 +42,8 @@ public partial class CombatLogPanel : Control
         OffsetTop = 15;
         OffsetBottom = 15;
         GrowHorizontal = GrowDirection.Begin;
-        MouseFilter = MouseFilterEnum.Ignore;
+        MouseFilter = MouseFilterEnum.Stop;
+        MouseDefaultCursorShape = CursorShape.Move;
 
         var styleBox = new StyleBoxFlat();
         styleBox.BgColor = new Color(0.05f, 0.05f, 0.1f, 0.85f);
@@ -52,17 +58,21 @@ public partial class CombatLogPanel : Control
         inner.OffsetLeft = 0; inner.OffsetRight = 0;
         inner.OffsetTop = 0; inner.OffsetBottom = 0;
         inner.AddThemeStyleboxOverride("panel", styleBox);
+        inner.MouseFilter = MouseFilterEnum.Pass;
         AddChild(inner);
 
         var vbox = new VBoxContainer();
+        vbox.MouseFilter = MouseFilterEnum.Pass;
         inner.AddChild(vbox);
 
         _scroll = new ScrollContainer();
         _scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+        _scroll.MouseFilter = MouseFilterEnum.Pass;
         vbox.AddChild(_scroll);
 
         _list = new VBoxContainer();
         _list.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        _list.MouseFilter = MouseFilterEnum.Pass;
         _scroll.AddChild(_list);
 
         vbox.AddChild(new HSeparator());
@@ -98,6 +108,38 @@ public partial class CombatLogPanel : Control
         {
             Toggle();
             GetViewport().SetInputAsHandled();
+        }
+    }
+
+    public override void _GuiInput(InputEvent ev)
+    {
+        switch (ev)
+        {
+            case InputEventMouseButton mb when mb.ButtonIndex == MouseButton.Left:
+                if (mb.Pressed)
+                {
+                    _dragging = true;
+                    _dragStartMouse = GetGlobalMousePosition();
+                    _dragStartOffsetRight = OffsetRight;
+                    _dragStartOffsetTop = OffsetTop;
+                    _dragStartOffsetBottom = OffsetBottom;
+                }
+                else
+                {
+                    _dragging = false;
+                }
+                AcceptEvent();
+                break;
+
+            case InputEventMouseMotion when _dragging:
+                var mouse = GetGlobalMousePosition();
+                var dx = mouse.X - _dragStartMouse.X;
+                var dy = mouse.Y - _dragStartMouse.Y;
+                OffsetRight = _dragStartOffsetRight + dx;
+                OffsetTop = _dragStartOffsetTop + dy;
+                OffsetBottom = _dragStartOffsetBottom + dy;
+                AcceptEvent();
+                break;
         }
     }
 
