@@ -126,7 +126,7 @@ Each step: build, manual test (solo AND 2-player MP), commit. Keep `affects_game
 - Die For You and Territorial cards have no tooltip on hover
 - Cards that recall from discard (e.g., resurrect/recall effects) should show which card was brought back
 - Vulnerable hover shows no status effect tooltip, but Doom/Weak do — likely because Vulnerable displays post-total stacks
-- Last hit that kills a creature isn't logged
+- ~~Last hit that kills a creature isn't logged~~ — fixed (c7a3885): patched `CreatureCmd.Damage` postfix instead of `CombatHistory.DamageReceived` (the latter is gated behind `!IsEnding`, which flips true on the killing hit)
 - Potions that give cards should log which card was taken
 - Card rewards taken should be shown in log
 - Teammate relics should show their tooltip on hover (not in own RelicBar, so native `RelicBar.OnFocus` misses them)

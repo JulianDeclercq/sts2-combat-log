@@ -65,6 +65,8 @@ public partial class CombatLogPanel : PanelContainer
         _list.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _scroll.AddChild(_list);
 
+        AddChild(new PanelResizeHandle());
+
         Visible = false;
         _isShown = false;
 
