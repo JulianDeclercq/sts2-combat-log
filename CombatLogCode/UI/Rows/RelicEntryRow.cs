@@ -8,7 +8,6 @@ namespace CombatLog.CombatLogCode.UI.Rows;
 public partial class RelicEntryRow : HBoxContainer
 {
     private static readonly Color RelicColor = new(1.0f, 0.85f, 0.4f);
-    private static readonly Color TargetColor = new(0.7f, 0.6f, 0.5f);
     private static readonly Color HoverColor = new(1.0f, 0.95f, 0.5f);
     private const float IconSize = 20;
 
@@ -45,16 +44,11 @@ public partial class RelicEntryRow : HBoxContainer
 
         var labels = new List<Label>();
 
+        var shortName = NameTruncator.Short(_entry.RelicName);
         var nameText = string.IsNullOrEmpty(_entry.OwnerName)
-            ? _entry.RelicName
-            : $"{_entry.RelicName} [{_entry.OwnerName}]";
+            ? shortName
+            : $"{shortName} [{_entry.OwnerName}]";
         labels.Add(AppendLabel(nameText, RelicColor));
-
-        if (_entry.TargetNames.Count > 0)
-        {
-            var targets = string.Join(", ", _entry.TargetNames);
-            labels.Add(AppendLabel($"→ {targets}", TargetColor));
-        }
 
         var originalColors = labels.Select(l => l.GetThemeColor("font_color")).ToList();
         var targetIds = _entry.TargetCombatIds;
