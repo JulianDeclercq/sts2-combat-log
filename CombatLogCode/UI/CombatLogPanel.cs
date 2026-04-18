@@ -20,6 +20,7 @@ public partial class CombatLogPanel : Control
     private int _lastKnownCount;
     private bool _dragging;
     private Vector2 _dragStartMouse;
+    private float _dragStartOffsetLeft;
     private float _dragStartOffsetRight;
     private float _dragStartOffsetTop;
     private float _dragStartOffsetBottom;
@@ -32,16 +33,15 @@ public partial class CombatLogPanel : Control
         _instance = this;
         _highlighter = new CreatureHighlighter(this);
 
-        CustomMinimumSize = new Vector2(350, 0);
-        AnchorLeft = 1.0f;
-        AnchorRight = 1.0f;
-        AnchorTop = 0.07f;
-        AnchorBottom = 0.78f;
-        OffsetLeft = -310;
-        OffsetRight = -10;
-        OffsetTop = 15;
-        OffsetBottom = 15;
-        GrowHorizontal = GrowDirection.Begin;
+        var viewport = GetViewport().GetVisibleRect().Size;
+        const float defaultWidth = 350f;
+        var defaultHeight = (0.78f - 0.07f) * viewport.Y;
+        AnchorLeft = 0; AnchorRight = 0; AnchorTop = 0; AnchorBottom = 0;
+        OffsetRight = viewport.X - 10;
+        OffsetLeft = OffsetRight - defaultWidth;
+        OffsetTop = viewport.Y * 0.07f + 15;
+        OffsetBottom = OffsetTop + defaultHeight;
+        CustomMinimumSize = Vector2.Zero;
         MouseFilter = MouseFilterEnum.Stop;
         MouseDefaultCursorShape = CursorShape.Move;
 
@@ -85,10 +85,13 @@ public partial class CombatLogPanel : Control
         UpdateStatus();
 
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Left });
+        AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Right });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Top });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.Bottom });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.TopLeft });
+        AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.TopRight });
         AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.BottomLeft });
+        AddChild(new PanelEdgeHandle { Kind = PanelEdgeHandle.Edge.BottomRight });
 
         Visible = false;
         _isShown = false;
@@ -120,6 +123,7 @@ public partial class CombatLogPanel : Control
                 {
                     _dragging = true;
                     _dragStartMouse = GetGlobalMousePosition();
+                    _dragStartOffsetLeft = OffsetLeft;
                     _dragStartOffsetRight = OffsetRight;
                     _dragStartOffsetTop = OffsetTop;
                     _dragStartOffsetBottom = OffsetBottom;
@@ -135,6 +139,7 @@ public partial class CombatLogPanel : Control
                 var mouse = GetGlobalMousePosition();
                 var dx = mouse.X - _dragStartMouse.X;
                 var dy = mouse.Y - _dragStartMouse.Y;
+                OffsetLeft = _dragStartOffsetLeft + dx;
                 OffsetRight = _dragStartOffsetRight + dx;
                 OffsetTop = _dragStartOffsetTop + dy;
                 OffsetBottom = _dragStartOffsetBottom + dy;

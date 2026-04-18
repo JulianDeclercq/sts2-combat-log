@@ -4,16 +4,19 @@ namespace CombatLog.CombatLogCode.UI;
 
 /// <summary>
 /// Thin invisible strip on one edge or corner of <see cref="CombatLogPanel"/>. Drag to resize.
-/// Right edge is anchored to viewport, so only the left side and the two left corners are draggable.
-/// Width changes drive <c>CustomMinimumSize.X</c>; height changes drive <c>OffsetTop</c>/<c>OffsetBottom</c>.
+/// Panel uses absolute positioning (anchors all 0), so each edge maps directly to one offset.
+/// Corner handles combine the relevant edge actions.
 /// </summary>
 public partial class PanelEdgeHandle : Control
 {
-    public enum Edge { Left, Top, Bottom, TopLeft, BottomLeft }
+    public enum Edge
+    {
+        Left, Right, Top, Bottom,
+        TopLeft, TopRight, BottomLeft, BottomRight,
+    }
 
     public const float Thickness = 8f;
     public const float MinWidth = 250f;
-    public const float MaxWidth = 900f;
     public const float MinHeight = 200f;
 
     public Edge Kind { get; init; }
@@ -21,7 +24,8 @@ public partial class PanelEdgeHandle : Control
     private CombatLogPanel _panel = null!;
     private bool _dragging;
     private Vector2 _startMouse;
-    private float _startWidth;
+    private float _startOffsetLeft;
+    private float _startOffsetRight;
     private float _startOffsetTop;
     private float _startOffsetBottom;
 
@@ -36,15 +40,21 @@ public partial class PanelEdgeHandle : Control
                 OffsetTop = Thickness; OffsetBottom = -Thickness;
                 MouseDefaultCursorShape = CursorShape.Hsize;
                 break;
+            case Edge.Right:
+                AnchorLeft = 1; AnchorRight = 1; AnchorTop = 0; AnchorBottom = 1;
+                OffsetLeft = -Thickness; OffsetRight = 0;
+                OffsetTop = Thickness; OffsetBottom = -Thickness;
+                MouseDefaultCursorShape = CursorShape.Hsize;
+                break;
             case Edge.Top:
                 AnchorLeft = 0; AnchorRight = 1; AnchorTop = 0; AnchorBottom = 0;
-                OffsetLeft = Thickness; OffsetRight = 0;
+                OffsetLeft = Thickness; OffsetRight = -Thickness;
                 OffsetTop = 0; OffsetBottom = Thickness;
                 MouseDefaultCursorShape = CursorShape.Vsize;
                 break;
             case Edge.Bottom:
                 AnchorLeft = 0; AnchorRight = 1; AnchorTop = 1; AnchorBottom = 1;
-                OffsetLeft = Thickness; OffsetRight = 0;
+                OffsetLeft = Thickness; OffsetRight = -Thickness;
                 OffsetTop = -Thickness; OffsetBottom = 0;
                 MouseDefaultCursorShape = CursorShape.Vsize;
                 break;
@@ -54,11 +64,23 @@ public partial class PanelEdgeHandle : Control
                 OffsetTop = 0; OffsetBottom = Thickness;
                 MouseDefaultCursorShape = CursorShape.Fdiagsize;
                 break;
+            case Edge.TopRight:
+                AnchorLeft = 1; AnchorRight = 1; AnchorTop = 0; AnchorBottom = 0;
+                OffsetLeft = -Thickness; OffsetRight = 0;
+                OffsetTop = 0; OffsetBottom = Thickness;
+                MouseDefaultCursorShape = CursorShape.Bdiagsize;
+                break;
             case Edge.BottomLeft:
                 AnchorLeft = 0; AnchorRight = 0; AnchorTop = 1; AnchorBottom = 1;
                 OffsetLeft = 0; OffsetRight = Thickness;
                 OffsetTop = -Thickness; OffsetBottom = 0;
                 MouseDefaultCursorShape = CursorShape.Bdiagsize;
+                break;
+            case Edge.BottomRight:
+                AnchorLeft = 1; AnchorRight = 1; AnchorTop = 1; AnchorBottom = 1;
+                OffsetLeft = -Thickness; OffsetRight = 0;
+                OffsetTop = -Thickness; OffsetBottom = 0;
+                MouseDefaultCursorShape = CursorShape.Fdiagsize;
                 break;
         }
         MouseFilter = MouseFilterEnum.Stop;
@@ -73,7 +95,8 @@ public partial class PanelEdgeHandle : Control
                 {
                     _dragging = true;
                     _startMouse = GetGlobalMousePosition();
-                    _startWidth = _panel.CustomMinimumSize.X;
+                    _startOffsetLeft = _panel.OffsetLeft;
+                    _startOffsetRight = _panel.OffsetRight;
                     _startOffsetTop = _panel.OffsetTop;
                     _startOffsetBottom = _panel.OffsetBottom;
                 }
@@ -93,44 +116,36 @@ public partial class PanelEdgeHandle : Control
 
     private void Apply(Vector2 mouse)
     {
+        var dx = mouse.X - _startMouse.X;
+        var dy = mouse.Y - _startMouse.Y;
+
         if (Kind is Edge.Left or Edge.TopLeft or Edge.BottomLeft)
-            ApplyWidth(mouse);
-        if (Kind is Edge.Top or Edge.TopLeft)
-            ApplyOffsetTop(mouse);
-        if (Kind is Edge.Bottom or Edge.BottomLeft)
-            ApplyOffsetBottom(mouse);
-    }
-
-    private void ApplyWidth(Vector2 mouse)
-    {
-        // Panel grows leftward — dragging mouse left INCREASES width.
-        var w = Math.Clamp(_startWidth + (_startMouse.X - mouse.X), MinWidth, MaxWidth);
-        _panel.CustomMinimumSize = new Vector2(w, _panel.CustomMinimumSize.Y);
-    }
-
-    private void ApplyOffsetTop(Vector2 mouse)
-    {
-        var newTop = _startOffsetTop + (mouse.Y - _startMouse.Y);
-        var span = AnchorSpanY();
-        var height = span + _panel.OffsetBottom - newTop;
-        if (height < MinHeight)
-            newTop = span + _panel.OffsetBottom - MinHeight;
-        _panel.OffsetTop = newTop;
-    }
-
-    private void ApplyOffsetBottom(Vector2 mouse)
-    {
-        var newBot = _startOffsetBottom + (mouse.Y - _startMouse.Y);
-        var span = AnchorSpanY();
-        var height = span + newBot - _panel.OffsetTop;
-        if (height < MinHeight)
-            newBot = MinHeight + _panel.OffsetTop - span;
-        _panel.OffsetBottom = newBot;
-    }
-
-    private float AnchorSpanY()
-    {
-        var vh = GetViewport().GetVisibleRect().Size.Y;
-        return (_panel.AnchorBottom - _panel.AnchorTop) * vh;
+        {
+            var newLeft = _startOffsetLeft + dx;
+            if (_panel.OffsetRight - newLeft < MinWidth)
+                newLeft = _panel.OffsetRight - MinWidth;
+            _panel.OffsetLeft = newLeft;
+        }
+        if (Kind is Edge.Right or Edge.TopRight or Edge.BottomRight)
+        {
+            var newRight = _startOffsetRight + dx;
+            if (newRight - _panel.OffsetLeft < MinWidth)
+                newRight = _panel.OffsetLeft + MinWidth;
+            _panel.OffsetRight = newRight;
+        }
+        if (Kind is Edge.Top or Edge.TopLeft or Edge.TopRight)
+        {
+            var newTop = _startOffsetTop + dy;
+            if (_panel.OffsetBottom - newTop < MinHeight)
+                newTop = _panel.OffsetBottom - MinHeight;
+            _panel.OffsetTop = newTop;
+        }
+        if (Kind is Edge.Bottom or Edge.BottomLeft or Edge.BottomRight)
+        {
+            var newBottom = _startOffsetBottom + dy;
+            if (newBottom - _panel.OffsetTop < MinHeight)
+                newBottom = _panel.OffsetTop + MinHeight;
+            _panel.OffsetBottom = newBottom;
+        }
     }
 }
