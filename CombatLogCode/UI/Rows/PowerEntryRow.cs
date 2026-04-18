@@ -1,6 +1,8 @@
 using CombatLog.CombatLogCode.Events;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Powers;
+using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 
 namespace CombatLog.CombatLogCode.UI.Rows;
 
@@ -75,6 +77,16 @@ public partial class PowerEntryRow : HBoxContainer
             _highlighter.Highlight(_entry.OwnerCreatureCombatId);
             if (_entry.ApplierCombatId.HasValue && _entry.ApplierCombatId != _entry.OwnerCreatureCombatId)
                 _highlighter.Highlight(_entry.ApplierCombatId);
+            if (_entry.Power is not null)
+                try
+                {
+                    var tips = _entry.Power.HoverTips.ToList();
+                    // Some powers (ally pets etc.) return empty HoverTips via visibility check — fall back to the raw description.
+                    if (tips.Count == 0) tips.Add(_entry.Power.DumbHoverTip);
+                    var tip = NHoverTipSet.CreateAndShow(this, tips);
+                    if (tip is not null) HoverTipHelper.PositionLeftOfCursor(this, tip);
+                }
+                catch { }
         };
 
         MouseExited += () =>
@@ -82,6 +94,12 @@ public partial class PowerEntryRow : HBoxContainer
             for (int i = 0; i < labels.Count; i++)
                 labels[i].AddThemeColorOverride("font_color", originalColors[i]);
             _highlighter.Clear();
+            try { NHoverTipSet.Remove(this); } catch { }
+        };
+
+        TreeExiting += () =>
+        {
+            try { NHoverTipSet.Remove(this); } catch { }
         };
     }
 
