@@ -1,5 +1,6 @@
 using CombatLog.CombatLogCode.Events;
 using Godot;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Relics;
 
 namespace CombatLog.CombatLogCode.UI.Rows;
@@ -67,6 +68,17 @@ public partial class RelicEntryRow : HBoxContainer
                 _hoveredHolder = FindRelicHolder(_entry.RelicId);
                 _hoveredHolder?.OnFocus();
             }
+            else if (_entry.Relic is not null)
+            {
+                // Teammate relics aren't in the local RelicBar, so RelicBar.OnFocus can't
+                // show their tooltip. Build one ourselves from the RelicModel.
+                try
+                {
+                    var tip = NHoverTipSet.CreateAndShow(this, _entry.Relic.HoverTips);
+                    if (tip is not null) HoverTipHelper.PositionLeftOfCursor(this, tip);
+                }
+                catch { }
+            }
         };
 
         MouseExited += () =>
@@ -77,6 +89,12 @@ public partial class RelicEntryRow : HBoxContainer
             if (_hoveredHolder is not null && GodotObject.IsInstanceValid(_hoveredHolder))
                 _hoveredHolder.OnUnfocus();
             _hoveredHolder = null;
+            try { NHoverTipSet.Remove(this); } catch { }
+        };
+
+        TreeExiting += () =>
+        {
+            try { NHoverTipSet.Remove(this); } catch { }
         };
     }
 
