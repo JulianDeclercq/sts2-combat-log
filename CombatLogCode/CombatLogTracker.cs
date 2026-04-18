@@ -70,6 +70,18 @@ public static class CombatLogTracker
         Append(e);
     }
 
+    public static void RecordCardRecall(
+        string recalledCardName, CardModel? recalledCard,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new CardRecallEvent(
+            recalledCardName, recalledCard,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
     public static void RecordPowerReceived(
         string powerId, string powerTitle, PowerType type, PowerStackType stackType,
         int delta, int newTotal,
