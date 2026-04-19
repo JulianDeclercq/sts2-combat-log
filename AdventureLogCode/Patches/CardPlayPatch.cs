@@ -25,10 +25,18 @@ public static class CardPlayPatch
             var targetCombatId = __1?.CombatId;
             var playerCombatId = __instance.Owner?.Creature?.CombatId;
 
+            int? xValue = null;
+            if (__instance.HasEnergyCostX)
+            {
+                try { xValue = __instance.ResolveEnergyXValue(); }
+                catch { /* CapturedXValue may be unset for dupes / odd paths */ }
+            }
+
             AdventureLogTracker.RecordCardPlay(
                 cardName, __instance,
                 ownerNetId, ownerName, isLocal,
-                targetName, targetCombatId, playerCombatId);
+                targetName, targetCombatId, playerCombatId,
+                xValue);
         }
         catch (Exception e)
         {
