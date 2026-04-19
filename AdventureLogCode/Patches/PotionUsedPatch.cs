@@ -1,26 +1,27 @@
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 
 namespace AdventureLog.AdventureLogCode.Patches;
 
 /// <summary>
-/// Logs potion use. Downstream damage / block / power events are already recorded
-/// by their own patches; this row makes their source visible.
+/// Logs potion use. Patches PotionModel.OnUseWrapper as a Prefix so the
+/// PotionUsedEvent is recorded BEFORE the OnUse effects run — letting the
+/// render layer consume subsequent power/block/damage rows as children of
+/// the potion (same nesting pattern as card play).
 /// </summary>
-[HarmonyPatch(typeof(CombatHistory), nameof(CombatHistory.PotionUsed))]
+[HarmonyPatch(typeof(PotionModel), nameof(PotionModel.OnUseWrapper))]
 public static class PotionUsedPatch
 {
-    [HarmonyPostfix]
-    public static void Postfix(CombatState __0, PotionModel __1, Creature? __2)
+    [HarmonyPrefix]
+    public static void Prefix(PotionModel __instance, PlayerChoiceContext __0, Creature? __1)
     {
         try
         {
-            var potion = __1;
-            var target = __2;
+            var potion = __instance;
+            var target = __1;
             if (potion is null) return;
 
             var title = potion.Title?.GetFormattedText() ?? potion.Id?.Entry ?? potion.GetType().Name;

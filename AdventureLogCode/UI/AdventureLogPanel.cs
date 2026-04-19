@@ -280,6 +280,16 @@ public partial class AdventureLogPanel : Control
                 break;
             case PotionRenderItem p:
                 _list.AddChild(new PotionUsedRow(p.Potion, _highlighter));
+                foreach (var gd in GroupDamagesByVictim(p.Damages))
+                    _list.AddChild(new DamageSubRow(
+                        gd.VictimName, gd.VictimCombatId, null,
+                        gd.HpLost, gd.Blocked, gd.Killed, _highlighter));
+                foreach (var pw in p.Powers)
+                    _list.AddChild(new PowerSubRow(pw, _highlighter));
+                foreach (var b in p.BlockGains)
+                    _list.AddChild(new BlockGainedRow(b, _highlighter, showSource: false));
+                foreach (var e in p.Energies)
+                    _list.AddChild(new EnergySubRow(e, _highlighter, showSource: false));
                 break;
             case SourceGroupRenderItem g:
                 _list.AddChild(new SourceHeaderRow(g.SourceName, g.SourceCombatId, _highlighter));
@@ -358,7 +368,12 @@ public partial class AdventureLogPanel : Control
         : RenderItem(Affliction.CombatNumber, Affliction.TurnNumber);
     private sealed record BlockGainedRenderItem(BlockGainedEvent Block)
         : RenderItem(Block.CombatNumber, Block.TurnNumber);
-    private sealed record PotionRenderItem(PotionUsedEvent Potion)
+    private sealed record PotionRenderItem(
+        PotionUsedEvent Potion,
+        IReadOnlyList<DamageReceivedEvent> Damages,
+        IReadOnlyList<PowerReceivedEvent> Powers,
+        IReadOnlyList<BlockGainedEvent> BlockGains,
+        IReadOnlyList<EnergyDeltaEvent> Energies)
         : RenderItem(Potion.CombatNumber, Potion.TurnNumber);
     private sealed record SourceGroupRenderItem(
         string SourceName, uint? SourceCombatId,
@@ -511,8 +526,17 @@ public partial class AdventureLogPanel : Control
                     items.Add(new BlockGainedRenderItem(block));
                     break;
                 case PotionUsedEvent potion:
-                    items.Add(new PotionRenderItem(potion));
+                {
+                    var pDamages = new List<DamageReceivedEvent>();
+                    var pPowers = new List<PowerReceivedEvent>();
+                    var pBlocks = new List<BlockGainedEvent>();
+                    var pEnergies = new List<EnergyDeltaEvent>();
+                    while (i + 1 < history.Count
+                           && TryConsumePotionChild(history[i + 1], potion, pDamages, pPowers, pBlocks, pEnergies))
+                        i++;
+                    items.Add(new PotionRenderItem(potion, pDamages, pPowers, pBlocks, pEnergies));
                     break;
+                }
             }
         }
         return items;
@@ -559,6 +583,39 @@ public partial class AdventureLogPanel : Control
                 when !string.IsNullOrEmpty(b.SourceCardName) && b.SourceCardName == card.CardName
                      && b.OwnerNetId == card.OwnerNetId:
                 blockGains.Add(b);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // Potion-driven effects don't carry a SourceCardName (potions don't pass cardSource
+    // through Power/Block/Damage commands). Match by null-source + same owner so the
+    // immediate effects after OnUseWrapper nest under the potion row.
+    private static bool TryConsumePotionChild(
+        LogEvent evt, PotionUsedEvent potion,
+        List<DamageReceivedEvent> damages, List<PowerReceivedEvent> powers,
+        List<BlockGainedEvent> blockGains, List<EnergyDeltaEvent> energies)
+    {
+        if (evt.TurnNumber != potion.TurnNumber) return false;
+        if (evt.CombatNumber != potion.CombatNumber) return false;
+        switch (evt)
+        {
+            case PowerReceivedEvent p
+                when string.IsNullOrEmpty(p.SourceCardName) && p.OwnerNetId == potion.OwnerNetId:
+                powers.Add(p);
+                return true;
+            case BlockGainedEvent b
+                when string.IsNullOrEmpty(b.SourceCardName) && b.OwnerNetId == potion.OwnerNetId:
+                blockGains.Add(b);
+                return true;
+            case DamageReceivedEvent d
+                when string.IsNullOrEmpty(d.SourceCardName) && d.OwnerNetId == potion.OwnerNetId:
+                damages.Add(d);
+                return true;
+            case EnergyDeltaEvent e
+                when string.IsNullOrEmpty(e.SourceCardName) && e.OwnerNetId == potion.OwnerNetId:
+                energies.Add(e);
                 return true;
             default:
                 return false;
