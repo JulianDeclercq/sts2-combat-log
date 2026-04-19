@@ -13,5 +13,6 @@ public sealed record CardPlayEvent(
     bool IsLocal,
     int TurnNumber,
     int OrderInTurn,
-    int CombatNumber)
+    int CombatNumber,
+    int? XValue = null)
     : LogEvent(OwnerNetId, OwnerName, IsLocal, TurnNumber, OrderInTurn, CombatNumber);

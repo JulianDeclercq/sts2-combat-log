@@ -23,13 +23,15 @@ public static class AdventureLogTracker
     public static void RecordCardPlay(
         string cardName, CardModel? card,
         ulong? ownerNetId, string ownerName, bool isLocal,
-        string targetName = "", uint? targetCombatId = null, uint? playerCombatId = null)
+        string targetName = "", uint? targetCombatId = null, uint? playerCombatId = null,
+        int? xValue = null)
     {
         _orderCounter++;
         var e = new CardPlayEvent(
             cardName, card, targetName, targetCombatId, playerCombatId,
             ownerNetId, ownerName, isLocal,
-            CurrentTurn, _orderCounter, CurrentCombat);
+            CurrentTurn, _orderCounter, CurrentCombat,
+            xValue);
         Append(e);
     }
 
