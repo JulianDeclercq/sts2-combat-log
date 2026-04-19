@@ -234,14 +234,14 @@ public partial class AdventureLogPanel : Control
                     _list.AddChild(new CardDrawRow(d, OpenInspectScreen));
                 foreach (var dc in c.Discards)
                     _list.AddChild(new CardDiscardRow(dc, OpenInspectScreen));
-                foreach (var ex in c.Exhausts)
-                    _list.AddChild(new CardExhaustRow(ex, OpenInspectScreen));
                 foreach (var b in c.BlockGains)
                     _list.AddChild(new BlockGainedRow(b, _highlighter, showSource: false));
                 foreach (var u in c.Upgrades)
                     _list.AddChild(new CardUpgradeRow(u, OpenInspectScreen));
                 foreach (var gen in c.Generated)
                     _list.AddChild(new CardGeneratedRow(gen, OpenInspectScreen));
+                foreach (var ex in c.Exhausts)
+                    _list.AddChild(new CardExhaustRow(ex, OpenInspectScreen));
                 break;
             case DamageRenderItem d:
                 _list.AddChild(new DamageEntryRow(d.Damage, _highlighter));
