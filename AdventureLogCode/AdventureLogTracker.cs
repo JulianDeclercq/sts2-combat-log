@@ -1,5 +1,6 @@
 using AdventureLog.AdventureLogCode.Events;
 using Godot;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Models;
@@ -120,6 +121,18 @@ public static class AdventureLogTracker
         _orderCounter++;
         var e = new CardExhaustEvent(
             exhaustedCardName, exhaustedCard,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
+    public static void RecordCardGenerated(
+        string generatedCardName, CardModel? generatedCard, PileType? pile, bool generatedByPlayer,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new CardGeneratedEvent(
+            generatedCardName, generatedCard, pile, generatedByPlayer,
             ownerNetId, ownerName, isLocal,
             CurrentTurn, _orderCounter, CurrentCombat);
         Append(e);

@@ -240,6 +240,8 @@ public partial class AdventureLogPanel : Control
                     _list.AddChild(new BlockGainedRow(b, _highlighter, showSource: false));
                 foreach (var u in c.Upgrades)
                     _list.AddChild(new CardUpgradeRow(u, OpenInspectScreen));
+                foreach (var gen in c.Generated)
+                    _list.AddChild(new CardGeneratedRow(gen, OpenInspectScreen));
                 break;
             case DamageRenderItem d:
                 _list.AddChild(new DamageEntryRow(d.Damage, _highlighter));
@@ -294,9 +296,14 @@ public partial class AdventureLogPanel : Control
                     _list.AddChild(new EnergySubRow(e, _highlighter, showSource: false));
                 foreach (var u in p.Upgrades)
                     _list.AddChild(new CardUpgradeRow(u, OpenInspectScreen));
+                foreach (var gen in p.Generated)
+                    _list.AddChild(new CardGeneratedRow(gen, OpenInspectScreen));
                 break;
             case UpgradeRenderItem u:
                 _list.AddChild(new CardUpgradeRow(u.Upgrade, OpenInspectScreen));
+                break;
+            case GeneratedRenderItem g:
+                _list.AddChild(new CardGeneratedRow(g.Generated, OpenInspectScreen));
                 break;
             case SourceGroupRenderItem g:
                 _list.AddChild(new SourceHeaderRow(g.SourceName, g.SourceCombatId, _highlighter));
@@ -350,7 +357,8 @@ public partial class AdventureLogPanel : Control
         IReadOnlyList<CardDiscardEvent> Discards,
         IReadOnlyList<CardExhaustEvent> Exhausts,
         IReadOnlyList<BlockGainedEvent> BlockGains,
-        IReadOnlyList<CardUpgradeEvent> Upgrades)
+        IReadOnlyList<CardUpgradeEvent> Upgrades,
+        IReadOnlyList<CardGeneratedEvent> Generated)
         : RenderItem(Card.CombatNumber, Card.TurnNumber);
     private sealed record DamageRenderItem(DamageReceivedEvent Damage)
         : RenderItem(Damage.CombatNumber, Damage.TurnNumber);
@@ -382,10 +390,13 @@ public partial class AdventureLogPanel : Control
         IReadOnlyList<PowerReceivedEvent> Powers,
         IReadOnlyList<BlockGainedEvent> BlockGains,
         IReadOnlyList<EnergyDeltaEvent> Energies,
-        IReadOnlyList<CardUpgradeEvent> Upgrades)
+        IReadOnlyList<CardUpgradeEvent> Upgrades,
+        IReadOnlyList<CardGeneratedEvent> Generated)
         : RenderItem(Potion.CombatNumber, Potion.TurnNumber);
     private sealed record UpgradeRenderItem(CardUpgradeEvent Upgrade)
         : RenderItem(Upgrade.CombatNumber, Upgrade.TurnNumber);
+    private sealed record GeneratedRenderItem(CardGeneratedEvent Generated)
+        : RenderItem(Generated.CombatNumber, Generated.TurnNumber);
     private sealed record SourceGroupRenderItem(
         string SourceName, uint? SourceCombatId,
         IReadOnlyList<DamageReceivedEvent> Damages,
@@ -471,9 +482,10 @@ public partial class AdventureLogPanel : Control
                     var exhausts = new List<CardExhaustEvent>();
                     var blockGains = new List<BlockGainedEvent>();
                     var upgrades = new List<CardUpgradeEvent>();
-                    while (i + 1 < history.Count && TryConsumeCardChild(history[i + 1], card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains, upgrades))
+                    var generated = new List<CardGeneratedEvent>();
+                    while (i + 1 < history.Count && TryConsumeCardChild(history[i + 1], card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains, upgrades, generated))
                         i++;
-                    items.Add(new CardRenderItem(card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains, upgrades));
+                    items.Add(new CardRenderItem(card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains, upgrades, generated));
                     break;
                 }
                 case DamageReceivedEvent damage:
@@ -544,14 +556,18 @@ public partial class AdventureLogPanel : Control
                     var pBlocks = new List<BlockGainedEvent>();
                     var pEnergies = new List<EnergyDeltaEvent>();
                     var pUpgrades = new List<CardUpgradeEvent>();
+                    var pGenerated = new List<CardGeneratedEvent>();
                     while (i + 1 < history.Count
-                           && TryConsumePotionChild(history[i + 1], potion, pDamages, pPowers, pBlocks, pEnergies, pUpgrades))
+                           && TryConsumePotionChild(history[i + 1], potion, pDamages, pPowers, pBlocks, pEnergies, pUpgrades, pGenerated))
                         i++;
-                    items.Add(new PotionRenderItem(potion, pDamages, pPowers, pBlocks, pEnergies, pUpgrades));
+                    items.Add(new PotionRenderItem(potion, pDamages, pPowers, pBlocks, pEnergies, pUpgrades, pGenerated));
                     break;
                 }
                 case CardUpgradeEvent upgrade:
                     items.Add(new UpgradeRenderItem(upgrade));
+                    break;
+                case CardGeneratedEvent gen:
+                    items.Add(new GeneratedRenderItem(gen));
                     break;
             }
         }
@@ -564,7 +580,7 @@ public partial class AdventureLogPanel : Control
         List<CardRecallEvent> recalls, List<EnergyDeltaEvent> energies,
         List<CardDrawEvent> draws, List<CardDiscardEvent> discards,
         List<CardExhaustEvent> exhausts, List<BlockGainedEvent> blockGains,
-        List<CardUpgradeEvent> upgrades)
+        List<CardUpgradeEvent> upgrades, List<CardGeneratedEvent> generated)
     {
         if (evt.TurnNumber != card.TurnNumber) return false;
         if (evt.CombatNumber != card.CombatNumber) return false;
@@ -604,6 +620,9 @@ public partial class AdventureLogPanel : Control
             case CardUpgradeEvent u when u.OwnerNetId == card.OwnerNetId:
                 upgrades.Add(u);
                 return true;
+            case CardGeneratedEvent g when g.GeneratedByPlayer && g.OwnerNetId == card.OwnerNetId:
+                generated.Add(g);
+                return true;
             default:
                 return false;
         }
@@ -616,7 +635,7 @@ public partial class AdventureLogPanel : Control
         LogEvent evt, PotionUsedEvent potion,
         List<DamageReceivedEvent> damages, List<PowerReceivedEvent> powers,
         List<BlockGainedEvent> blockGains, List<EnergyDeltaEvent> energies,
-        List<CardUpgradeEvent> upgrades)
+        List<CardUpgradeEvent> upgrades, List<CardGeneratedEvent> generated)
     {
         if (evt.TurnNumber != potion.TurnNumber) return false;
         if (evt.CombatNumber != potion.CombatNumber) return false;
@@ -640,6 +659,9 @@ public partial class AdventureLogPanel : Control
                 return true;
             case CardUpgradeEvent u when u.OwnerNetId == potion.OwnerNetId:
                 upgrades.Add(u);
+                return true;
+            case CardGeneratedEvent g when g.GeneratedByPlayer && g.OwnerNetId == potion.OwnerNetId:
+                generated.Add(g);
                 return true;
             default:
                 return false;
