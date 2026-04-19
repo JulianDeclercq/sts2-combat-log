@@ -11,7 +11,6 @@ Implications:
 
 ## TODO
 - We should add card draw (e.g. soul)
-- Cards with X energy should show their stuff. e.g.  Dirge
 - Enemy dying of doom doesnt show
 - In MP, daughter of the wind relic didnt show on hover when hovering ni the panel, it just gave the tooltip (didnt hover on bar itself)
 - game felt kind of laggy at combat 28 , do we have any leaks or anything? not sure if it's the mod. Think it's bc we were playing a shiv build. Could we
@@ -21,7 +20,6 @@ do the ui on a separate thread instead so it's not blocking the main game thread
 
 ## Maybe later
 - Card Retained — low signal; only useful for Retain-mechanic decks. Revisit if a class makes it central.
-- Card Generated mid-combat — niche (Headbutt-equivalents, Wraith Form spawns). Would also overlap visually with draws.
 - Creature Death event — `Hook.BeforeDeath` / `Hook.AfterDeath` are async state machines (fragile to Harmony-patch). `DamageReceivedPatch` already records `wasKilled` from `DamageResult`, so most kills surface today. Doom-specific gap needs separate diagnosis.
 - Orb Channeled / Evoked — no orb-using class confirmed in StS2 yet; revisit when one lands.
 - Stars / Gold / Forge — out-of-combat or cosmetic noise.
