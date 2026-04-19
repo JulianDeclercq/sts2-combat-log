@@ -12,11 +12,19 @@ public static class HoverTipHelper
         void Reposition()
         {
             if (!GodotObject.IsInstanceValid(tip)) return;
+            if (!GodotObject.IsInstanceValid(owner)) return;
             var mouse = owner.GetGlobalMousePosition();
             tip.GlobalPosition = mouse + new Vector2(-tip.Size.X - 20, 20);
         }
 
         Reposition();
         tip.Resized += Reposition;
+        owner.TreeExiting += () =>
+        {
+            if (GodotObject.IsInstanceValid(tip))
+            {
+                try { tip.Resized -= Reposition; } catch { }
+            }
+        };
     }
 }

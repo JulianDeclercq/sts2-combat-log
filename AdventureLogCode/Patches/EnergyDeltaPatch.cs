@@ -18,6 +18,7 @@ public static class EnergyDeltaPatch
         try
         {
             var delta = (int)__0;
+            // Log only gains; drains are noise in the adventure log.
             if (delta <= 0) return;
 
             var ownerNetId = __1?.NetId;
