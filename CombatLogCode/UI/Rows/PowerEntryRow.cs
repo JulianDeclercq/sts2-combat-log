@@ -23,6 +23,7 @@ public partial class PowerEntryRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         var labels = new List<Label>();
         var isNegative = _entry.StackType == PowerStackType.Counter && _entry.Delta < 0;

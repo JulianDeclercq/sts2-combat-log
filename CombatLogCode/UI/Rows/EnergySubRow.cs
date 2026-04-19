@@ -23,6 +23,7 @@ public partial class EnergySubRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         AddChild(new Label { Text = "    " });
 

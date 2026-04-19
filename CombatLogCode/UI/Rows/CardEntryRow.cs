@@ -53,6 +53,7 @@ public partial class CardEntryRow : HBoxContainer
 
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         var tinyCard = TinyCardFactory.Build(card, CardIconSize);
         if (tinyCard is not null) AddChild(tinyCard);

@@ -18,6 +18,7 @@ public partial class DamageEntryRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         var indent = new Label { Text = "    " };
         AddChild(indent);

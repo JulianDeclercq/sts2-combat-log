@@ -26,6 +26,7 @@ public partial class RelicEntryRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         if (_entry.Relic is not null)
         {

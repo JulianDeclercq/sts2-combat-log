@@ -19,6 +19,7 @@ public partial class SourceHeaderRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         var label = new Label();
         label.Text = $"{NameTruncator.Short(_sourceName)}:";

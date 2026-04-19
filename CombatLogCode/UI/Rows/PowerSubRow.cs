@@ -22,6 +22,7 @@ public partial class PowerSubRow : HBoxContainer
     {
         AddThemeConstantOverride("separation", 4);
         MouseFilter = MouseFilterEnum.Stop;
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 
         AddChild(new Label { Text = "    " });
 
