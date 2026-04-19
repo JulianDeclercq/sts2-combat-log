@@ -234,6 +234,10 @@ public partial class AdventureLogPanel : Control
                     _list.AddChild(new CardDrawRow(d, OpenInspectScreen));
                 foreach (var dc in c.Discards)
                     _list.AddChild(new CardDiscardRow(dc, OpenInspectScreen));
+                foreach (var ex in c.Exhausts)
+                    _list.AddChild(new CardExhaustRow(ex, OpenInspectScreen));
+                foreach (var b in c.BlockGains)
+                    _list.AddChild(new BlockGainedRow(b, _highlighter, showSource: false));
                 break;
             case DamageRenderItem d:
                 _list.AddChild(new DamageEntryRow(d.Damage, _highlighter));
@@ -264,6 +268,28 @@ public partial class AdventureLogPanel : Control
                 break;
             case DiscardRenderItem d:
                 _list.AddChild(new CardDiscardRow(d.Discard, OpenInspectScreen));
+                break;
+            case ExhaustRenderItem ex:
+                _list.AddChild(new CardExhaustRow(ex.Exhaust, OpenInspectScreen));
+                break;
+            case AfflictionRenderItem a:
+                _list.AddChild(new CardAfflictionRow(a.Affliction, OpenInspectScreen));
+                break;
+            case BlockGainedRenderItem b:
+                _list.AddChild(new BlockGainedRow(b.Block, _highlighter));
+                break;
+            case PotionRenderItem p:
+                _list.AddChild(new PotionUsedRow(p.Potion, _highlighter));
+                foreach (var gd in GroupDamagesByVictim(p.Damages))
+                    _list.AddChild(new DamageSubRow(
+                        gd.VictimName, gd.VictimCombatId, null,
+                        gd.HpLost, gd.Blocked, gd.Killed, _highlighter));
+                foreach (var pw in p.Powers)
+                    _list.AddChild(new PowerSubRow(pw, _highlighter));
+                foreach (var b in p.BlockGains)
+                    _list.AddChild(new BlockGainedRow(b, _highlighter, showSource: false));
+                foreach (var e in p.Energies)
+                    _list.AddChild(new EnergySubRow(e, _highlighter, showSource: false));
                 break;
             case SourceGroupRenderItem g:
                 _list.AddChild(new SourceHeaderRow(g.SourceName, g.SourceCombatId, _highlighter));
@@ -314,7 +340,9 @@ public partial class AdventureLogPanel : Control
         IReadOnlyList<CardRecallEvent> Recalls,
         IReadOnlyList<EnergyDeltaEvent> Energies,
         IReadOnlyList<CardDrawEvent> Draws,
-        IReadOnlyList<CardDiscardEvent> Discards)
+        IReadOnlyList<CardDiscardEvent> Discards,
+        IReadOnlyList<CardExhaustEvent> Exhausts,
+        IReadOnlyList<BlockGainedEvent> BlockGains)
         : RenderItem(Card.CombatNumber, Card.TurnNumber);
     private sealed record DamageRenderItem(DamageReceivedEvent Damage)
         : RenderItem(Damage.CombatNumber, Damage.TurnNumber);
@@ -334,6 +362,19 @@ public partial class AdventureLogPanel : Control
         : RenderItem(Draw.CombatNumber, Draw.TurnNumber);
     private sealed record DiscardRenderItem(CardDiscardEvent Discard)
         : RenderItem(Discard.CombatNumber, Discard.TurnNumber);
+    private sealed record ExhaustRenderItem(CardExhaustEvent Exhaust)
+        : RenderItem(Exhaust.CombatNumber, Exhaust.TurnNumber);
+    private sealed record AfflictionRenderItem(CardAfflictionEvent Affliction)
+        : RenderItem(Affliction.CombatNumber, Affliction.TurnNumber);
+    private sealed record BlockGainedRenderItem(BlockGainedEvent Block)
+        : RenderItem(Block.CombatNumber, Block.TurnNumber);
+    private sealed record PotionRenderItem(
+        PotionUsedEvent Potion,
+        IReadOnlyList<DamageReceivedEvent> Damages,
+        IReadOnlyList<PowerReceivedEvent> Powers,
+        IReadOnlyList<BlockGainedEvent> BlockGains,
+        IReadOnlyList<EnergyDeltaEvent> Energies)
+        : RenderItem(Potion.CombatNumber, Potion.TurnNumber);
     private sealed record SourceGroupRenderItem(
         string SourceName, uint? SourceCombatId,
         IReadOnlyList<DamageReceivedEvent> Damages,
@@ -416,9 +457,11 @@ public partial class AdventureLogPanel : Control
                     var energies = new List<EnergyDeltaEvent>();
                     var draws = new List<CardDrawEvent>();
                     var discards = new List<CardDiscardEvent>();
-                    while (i + 1 < history.Count && TryConsumeCardChild(history[i + 1], card, damages, powers, recalls, energies, draws, discards))
+                    var exhausts = new List<CardExhaustEvent>();
+                    var blockGains = new List<BlockGainedEvent>();
+                    while (i + 1 < history.Count && TryConsumeCardChild(history[i + 1], card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains))
                         i++;
-                    items.Add(new CardRenderItem(card, damages, powers, recalls, energies, draws, discards));
+                    items.Add(new CardRenderItem(card, damages, powers, recalls, energies, draws, discards, exhausts, blockGains));
                     break;
                 }
                 case DamageReceivedEvent damage:
@@ -473,6 +516,27 @@ public partial class AdventureLogPanel : Control
                 case CardDiscardEvent discard:
                     items.Add(new DiscardRenderItem(discard));
                     break;
+                case CardExhaustEvent exhaust:
+                    items.Add(new ExhaustRenderItem(exhaust));
+                    break;
+                case CardAfflictionEvent affliction:
+                    items.Add(new AfflictionRenderItem(affliction));
+                    break;
+                case BlockGainedEvent block:
+                    items.Add(new BlockGainedRenderItem(block));
+                    break;
+                case PotionUsedEvent potion:
+                {
+                    var pDamages = new List<DamageReceivedEvent>();
+                    var pPowers = new List<PowerReceivedEvent>();
+                    var pBlocks = new List<BlockGainedEvent>();
+                    var pEnergies = new List<EnergyDeltaEvent>();
+                    while (i + 1 < history.Count
+                           && TryConsumePotionChild(history[i + 1], potion, pDamages, pPowers, pBlocks, pEnergies))
+                        i++;
+                    items.Add(new PotionRenderItem(potion, pDamages, pPowers, pBlocks, pEnergies));
+                    break;
+                }
             }
         }
         return items;
@@ -482,7 +546,8 @@ public partial class AdventureLogPanel : Control
         LogEvent evt, CardPlayEvent card,
         List<DamageReceivedEvent> damages, List<PowerReceivedEvent> powers,
         List<CardRecallEvent> recalls, List<EnergyDeltaEvent> energies,
-        List<CardDrawEvent> draws, List<CardDiscardEvent> discards)
+        List<CardDrawEvent> draws, List<CardDiscardEvent> discards,
+        List<CardExhaustEvent> exhausts, List<BlockGainedEvent> blockGains)
     {
         if (evt.TurnNumber != card.TurnNumber) return false;
         if (evt.CombatNumber != card.CombatNumber) return false;
@@ -493,8 +558,9 @@ public partial class AdventureLogPanel : Control
                 damages.Add(d);
                 return true;
             case PowerReceivedEvent p
-                when (p.ApplierCombatId.HasValue && p.ApplierCombatId == card.PlayerCombatId)
-                     || (p.OwnerCreatureCombatId.HasValue && p.OwnerCreatureCombatId == card.PlayerCombatId):
+                when !string.IsNullOrEmpty(p.SourceCardName) && p.SourceCardName == card.CardName
+                     && ((p.ApplierCombatId.HasValue && p.ApplierCombatId == card.PlayerCombatId)
+                         || (p.OwnerCreatureCombatId.HasValue && p.OwnerCreatureCombatId == card.PlayerCombatId)):
                 powers.Add(p);
                 return true;
             case EnergyDeltaEvent e
@@ -509,6 +575,47 @@ public partial class AdventureLogPanel : Control
                 return true;
             case CardDiscardEvent dc when dc.OwnerNetId == card.OwnerNetId:
                 discards.Add(dc);
+                return true;
+            case CardExhaustEvent ex when ex.OwnerNetId == card.OwnerNetId:
+                exhausts.Add(ex);
+                return true;
+            case BlockGainedEvent b
+                when !string.IsNullOrEmpty(b.SourceCardName) && b.SourceCardName == card.CardName
+                     && b.OwnerNetId == card.OwnerNetId:
+                blockGains.Add(b);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // Potion-driven effects don't carry a SourceCardName (potions don't pass cardSource
+    // through Power/Block/Damage commands). Match by null-source + same owner so the
+    // immediate effects after OnUseWrapper nest under the potion row.
+    private static bool TryConsumePotionChild(
+        LogEvent evt, PotionUsedEvent potion,
+        List<DamageReceivedEvent> damages, List<PowerReceivedEvent> powers,
+        List<BlockGainedEvent> blockGains, List<EnergyDeltaEvent> energies)
+    {
+        if (evt.TurnNumber != potion.TurnNumber) return false;
+        if (evt.CombatNumber != potion.CombatNumber) return false;
+        switch (evt)
+        {
+            case PowerReceivedEvent p
+                when string.IsNullOrEmpty(p.SourceCardName) && p.OwnerNetId == potion.OwnerNetId:
+                powers.Add(p);
+                return true;
+            case BlockGainedEvent b
+                when string.IsNullOrEmpty(b.SourceCardName) && b.OwnerNetId == potion.OwnerNetId:
+                blockGains.Add(b);
+                return true;
+            case DamageReceivedEvent d
+                when string.IsNullOrEmpty(d.SourceCardName) && d.OwnerNetId == potion.OwnerNetId:
+                damages.Add(d);
+                return true;
+            case EnergyDeltaEvent e
+                when string.IsNullOrEmpty(e.SourceCardName) && e.OwnerNetId == potion.OwnerNetId:
+                energies.Add(e);
                 return true;
             default:
                 return false;

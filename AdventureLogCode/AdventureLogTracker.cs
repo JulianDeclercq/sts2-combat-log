@@ -113,13 +113,63 @@ public static class AdventureLogTracker
         Append(e);
     }
 
+    public static void RecordCardExhaust(
+        string exhaustedCardName, CardModel? exhaustedCard,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new CardExhaustEvent(
+            exhaustedCardName, exhaustedCard,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
+    public static void RecordCardAffliction(
+        string afflictedCardName, CardModel? afflictedCard, string afflictionTitle,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new CardAfflictionEvent(
+            afflictedCardName, afflictedCard, afflictionTitle,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
+    public static void RecordBlockGained(
+        string receiverName, uint? receiverCombatId, int amount, string? sourceCardName,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new BlockGainedEvent(
+            receiverName, receiverCombatId, amount, sourceCardName,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
+    public static void RecordPotionUsed(
+        string potionTitle, PotionModel? potion, Texture2D? icon,
+        string? targetName, uint? targetCombatId,
+        ulong? ownerNetId, string ownerName, bool isLocal)
+    {
+        _orderCounter++;
+        var e = new PotionUsedEvent(
+            potionTitle, potion, icon, targetName, targetCombatId,
+            ownerNetId, ownerName, isLocal,
+            CurrentTurn, _orderCounter, CurrentCombat);
+        Append(e);
+    }
+
     public static void RecordPowerReceived(
         string powerId, string powerTitle, PowerType type, PowerStackType stackType,
         int delta, int newTotal,
         string ownerCreatureName, uint? ownerCreatureCombatId,
         string? applierName, uint? applierCombatId,
         Texture2D? icon, PowerModel? power,
-        ulong? ownerNetId, string ownerName, bool isLocal)
+        ulong? ownerNetId, string ownerName, bool isLocal,
+        string? sourceCardName = null)
     {
         _orderCounter++;
         var e = new PowerReceivedEvent(
@@ -127,7 +177,8 @@ public static class AdventureLogTracker
             ownerCreatureName, ownerCreatureCombatId,
             applierName, applierCombatId, icon, power,
             ownerNetId, ownerName, isLocal,
-            CurrentTurn, _orderCounter, CurrentCombat);
+            CurrentTurn, _orderCounter, CurrentCombat,
+            sourceCardName);
         Append(e);
     }
 
