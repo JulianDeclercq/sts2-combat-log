@@ -53,5 +53,10 @@ public partial class BlockGainedRow : HBoxContainer
             label.AddThemeColorOverride("font_color", BlockColor);
             _highlighter.Clear();
         };
+
+        TreeExiting += () =>
+        {
+            try { _highlighter.Clear(); } catch { }
+        };
     }
 }

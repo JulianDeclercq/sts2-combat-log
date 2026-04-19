@@ -99,6 +99,12 @@ public partial class CardEntryRow : HBoxContainer
                 _openInspect(card);
             }
         };
+
+        TreeExiting += () =>
+        {
+            try { NHoverTipSet.Remove(this); } catch { }
+            try { _highlighter.Clear(); } catch { }
+        };
     }
 
     private static Color GetRarityColor(CardRarity rarity) => rarity switch
