@@ -15,6 +15,9 @@ internal static class TinyCardFactory
         if (_scene is null) return null;
 
         var node = _scene.Instantiate<NTinyCard>();
+        // CustomMinimumSize is load-bearing for AdventureLogPanel scroll compensation: it
+        // gives GetCombinedMinimumSize a correct value synchronously, before SetCard runs
+        // on the Ready signal (deferred per CLAUDE.md gotcha #8).
         node.CustomMinimumSize = new Vector2(iconSize, iconSize);
         node.Scale = new Vector2(scale, scale);
         node.Ready += () => node.SetCard(card);

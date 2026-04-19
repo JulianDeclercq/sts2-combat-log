@@ -19,6 +19,8 @@ public static class CardDrawPatch
     public static void Postfix(ref Task<IEnumerable<CardModel>> __result, Player player, bool fromHandDraw)
     {
         if (fromHandDraw) return;
+        // Replace __result with a wrapped Task so the draw events get logged on main thread.
+        // Callers treat this as the draw task; no known code compares Task identity.
         var original = __result;
         __result = Continuation(original, player);
     }
