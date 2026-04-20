@@ -47,7 +47,32 @@ Copy-Item $json (Join-Path $stage 'AdventureLog.json')
 
 $zip = Join-Path $dist "AdventureLog-$version.zip"
 Remove-Item $zip -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path $stage -DestinationPath $zip
+# Build entries manually so paths use forward slashes on every PS / .NET version.
+# (ZipFile.CreateFromDirectory on Windows PowerShell 5.1 / .NET Framework emits backslashes, which violates the ZIP spec.)
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$stageRoot = Join-Path $dist 'stage'
+$zipStream = [System.IO.File]::Open($zip, [System.IO.FileMode]::Create)
+try {
+    $archive = New-Object System.IO.Compression.ZipArchive($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Get-ChildItem -Path $stageRoot -Recurse -File | ForEach-Object {
+            $rel = $_.FullName.Substring($stageRoot.Length + 1).Replace('\','/')
+            $entry = $archive.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+            $entryStream = $entry.Open()
+            try {
+                $fs = [System.IO.File]::OpenRead($_.FullName)
+                try { $fs.CopyTo($entryStream) } finally { $fs.Dispose() }
+            } finally {
+                $entryStream.Dispose()
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+} finally {
+    $zipStream.Dispose()
+}
 
 Remove-Item (Join-Path $dist 'stage') -Recurse -Force
 
