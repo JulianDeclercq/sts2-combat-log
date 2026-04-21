@@ -61,5 +61,10 @@ public partial class DamageSubRow : HBoxContainer
                 labels[i].AddThemeColorOverride("font_color", originalColors[i]);
             _highlighter.Clear();
         };
+
+        TreeExiting += () =>
+        {
+            try { _highlighter.Clear(); } catch { }
+        };
     }
 }

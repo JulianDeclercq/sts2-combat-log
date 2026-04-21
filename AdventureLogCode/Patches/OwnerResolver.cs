@@ -1,3 +1,4 @@
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Runs;
@@ -37,6 +38,9 @@ public static class OwnerResolver
                 // LocalPlayer not resolvable — keep default (treat as local to match solo behavior)
             }
         }
-        catch { }
+        catch (Exception e)
+        {
+            GD.PrintErr($"[AdventureLog] OwnerResolver failed: {e.Message}");
+        }
     }
 }

@@ -31,9 +31,11 @@ internal static class PanelSettings
         {
             if (!DirAccess.DirExistsAbsolute(Dir))
                 DirAccess.MakeDirRecursiveAbsolute(Dir);
-            using var f = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Write);
-            if (f is null) return;
-            f.StoreString(JsonSerializer.Serialize(data));
+            // Write to a tmp file then rename so a crash mid-write can't truncate settings.
+            var realPath = ProjectSettings.GlobalizePath(Path);
+            var tmpPath = realPath + ".tmp";
+            System.IO.File.WriteAllText(tmpPath, JsonSerializer.Serialize(data));
+            System.IO.File.Move(tmpPath, realPath, overwrite: true);
         }
         catch (System.Exception e)
         {

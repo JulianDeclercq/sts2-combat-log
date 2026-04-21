@@ -9,7 +9,7 @@ namespace AdventureLog.AdventureLogCode;
 
 public static class AdventureLogTracker
 {
-    public static List<LogEvent> History { get; } = new();
+    public static List<LogEvent> History { get; } = new(capacity: 256);
     public static int CurrentTurn { get; private set; } = 1;
     public static int CurrentCombat { get; private set; } = 0;
 
@@ -232,6 +232,7 @@ public static class AdventureLogTracker
         _firstPlayerTurn = true;
         History.Clear();
         ScheduledEnergySourceByPlayer.Clear();
+        Patches.PowerReceivedPatch.ApplyStack.Clear();
         OnHistoryChanged?.Invoke();
     }
 
